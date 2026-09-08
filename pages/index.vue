@@ -63,6 +63,16 @@ function toggleFaq(index: number) {
   openFaq.value = openFaq.value === index ? null : index
 }
 
+const faqContentHeight = ref<Record<number, number>>({})
+const faqEl = ref<Record<number, HTMLElement | null>>({})
+
+function setFaqRef(el: any, index: number) {
+  if (el) {
+    faqEl.value[index] = el
+    faqContentHeight.value[index] = el.scrollHeight
+  }
+}
+
 // ── Image handling ────────────────────────────────────────────────────────────
 function onImageSelect(file: File) {
   resetImage()
@@ -505,7 +515,7 @@ function scrollToTool() {
           <div
             v-for="(faq, i) in faqs"
             :key="i"
-            class="rounded-xl border border-white/5 bg-white/[0.02] transition-all"
+            class="rounded-xl border border-white/5 bg-white/[0.02] transition-all duration-300"
             :class="{ 'border-brand-500/20 bg-brand-500/5': openFaq === i }"
           >
             <button
@@ -514,15 +524,21 @@ function scrollToTool() {
             >
               {{ faq.q }}
               <svg
-                class="h-4 w-4 text-gray-500 transition-transform"
+                class="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-300"
                 :class="{ 'rotate-45': openFaq === i }"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
               >
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
             </button>
-            <div v-if="openFaq === i" class="px-6 pb-4 text-xs leading-relaxed text-gray-400">
-              {{ faq.a }}
+            <div
+              :ref="(el) => setFaqRef(el, i)"
+              class="overflow-hidden transition-all duration-300 ease-in-out"
+              :style="{ maxHeight: openFaq === i ? `${faqContentHeight[i] || 200}px` : '0px' }"
+            >
+              <div class="px-6 pb-4 text-xs leading-relaxed text-gray-400">
+                {{ faq.a }}
+              </div>
             </div>
           </div>
         </div>
