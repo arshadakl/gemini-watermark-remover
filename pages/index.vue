@@ -52,7 +52,7 @@ const videoSupport = computed(() => checkVideoSupport())
 const faqs = [
   { q: 'Is my data really private?', a: 'Yes. All processing happens directly in your browser using Web APIs. No files are ever uploaded to any server. Your images and videos never leave your device.' },
   { q: 'What file types are supported?', a: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Supported video resolutions: 1280×720, 720×1280, 1920×1080, and 1080×1920.' },
-  { q: 'Can it remove all AI watermarks?', a: 'Erasio removes the visible Gemini sparkle watermark added to AI-generated content. It does not remove invisible watermarks like Google\'s SynthID, which are embedded across all pixels.' },
+  { q: 'Can it remove all AI watermarks?', a: 'This tool removes the visible Gemini sparkle watermark added to AI-generated content. It does not remove invisible watermarks like Google\'s SynthID, which are embedded across all pixels.' },
   { q: 'Is it free to use?', a: 'Yes! The tool is completely free. The watermark removal algorithm runs entirely in your browser using WebCodecs and Canvas APIs.' },
   { q: 'Why do I need Chrome or Edge for video?', a: 'Video processing uses the WebCodecs API, which is currently only available in Chromium-based browsers (Chrome, Edge, Brave, Opera). Image processing works in all modern browsers.' },
 ]
