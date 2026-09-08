@@ -28,12 +28,10 @@ import {
 import { clamp } from './utils'
 import { pearsonNCC } from './ncc'
 import { rescaleBilinear } from './rescale'
-import { reverseBlend, edgeDiffuse } from './blend'
+import { reverseBlend } from './blend'
 import { VIDEO_MASK_720_B64, VIDEO_MASK_1080_B64, decodeVideoMask } from './videoMasks'
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare const MP4Box: any
-/* eslint-enable @typescript-eslint/no-explicit-any */
+// @ts-expect-error — mp4box has no TypeScript declarations
+import { createFile, DataStream as Mp4DataStream } from 'mp4box'
 
 const TAG = '[VideoProcessor]'
 
@@ -50,7 +48,8 @@ function extractVideoDescription(file: any, track: any): Uint8Array | null {
   for (const e of entries) {
     const cfg = e.avcC || e.hvcC || e.vpcC || e.av1C
     if (!cfg) continue
-    const DS = typeof DataStream !== 'undefined' ? DataStream : (window as any).DataStream
+    // DataStream is exposed by mp4box.js
+    const DS = Mp4DataStream ?? (typeof DataStream !== 'undefined' ? DataStream : null)
     if (!DS) return null
     const ds = new DS(undefined, 0, DS.BIG_ENDIAN)
     cfg.write(ds)
@@ -71,7 +70,7 @@ interface DemuxResult {
 
 function demuxMp4(arrayBuffer: ArrayBuffer): Promise<DemuxResult> {
   return new Promise((resolve, reject) => {
-    const file = MP4Box.createFile()
+    const file = createFile()
     const videoSamples: any[] = []
     const audioSamples: any[] = []
     let videoTrack: any = null
