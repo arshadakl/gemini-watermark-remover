@@ -87,6 +87,3 @@ app/
 3. For each frame: decode (WebCodecs) → reverse blend → re-encode (WebCodecs)
 4. Mux new video + original audio → MP4 (mp4-muxer)
 
-## License
-
-MIT
