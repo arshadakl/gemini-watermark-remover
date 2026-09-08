@@ -1,75 +1,92 @@
-# Nuxt Minimal Starter
+# Gemini Watermark Remover
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Remove the visible Gemini AI sparkle watermark from images and videos — entirely in your browser. No server, no upload, no backend.
+
+## Features
+
+- **Image watermark removal** — any browser with Canvas support
+- **Video watermark removal** — Chrome, Edge, or Brave 94+ (WebCodecs API)
+- **100% client-side** — no files leave your device
+- **Supported resolutions** — 1280×720, 720×1280, 1920×1080, 1080×1920 (video)
+- **Audio preserved** — original audio track copied bit-for-bit
+
+## Tech Stack
+
+- [Nuxt 3](https://nuxt.com) (SPA mode)
+- [Tailwind CSS](https://tailwindcss.com)
+- [WebCodecs API](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API) (video decode/encode)
+- [mp4box.js](https://github.com/gpac/mp4box.js) (MP4 demux)
+- [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (MP4 mux)
 
 ## Setup
 
-Make sure to install dependencies:
-
 ```bash
-# npm
 npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+## Development
 
 ```bash
-# npm
 npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+# → http://localhost:3000
 ```
 
-## Production
-
-Build the application for production:
+## Build for Production
 
 ```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
+npm run generate
+# Output: .output/public/
 ```
 
-Locally preview production build:
+## Deploy to Cloudflare Pages
 
-```bash
-# npm
-npm run preview
+1. Push to GitHub
+2. Cloudflare Dashboard → Pages → Create project
+3. Build command: `npx nuxi generate`
+4. Build output directory: `.output/public`
 
-# pnpm
-pnpm preview
+## Project Structure
 
-# yarn
-yarn preview
-
-# bun
-bun run preview
+```
+app/
+├── lib/                    # Core processing logic (framework-agnostic)
+│   ├── types.ts            # Shared TypeScript interfaces
+│   ├── constants.ts        # All thresholds and configuration
+│   ├── utils.ts            # clamp, formatFileSize, etc.
+│   ├── ncc.ts              # NCC scoring (Pearson correlation)
+│   ├── rescale.ts          # Bilinear rescale for alpha maps
+│   ├── blend.ts            # Reverse alpha blend + edge diffusion
+│   ├── imageMasks.ts       # Embedded 48×48 and 96×96 alpha masks
+│   ├── videoMasks.ts       # Embedded 48×48 and 84×84 video masks
+│   ├── imageProcessor.ts   # Image watermark removal pipeline
+│   └── videoProcessor.ts   # Video watermark removal pipeline
+├── composables/            # Vue reactive wrappers
+│   ├── useImageProcessor.ts
+│   └── useVideoProcessor.ts
+├── components/             # Reusable UI components
+│   ├── FileUploader.vue
+│   ├── ProcessingStatus.vue
+│   └── DownloadButton.vue
+└── pages/
+    └── index.vue           # Main page
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## How It Works
+
+### Image Processing
+
+1. Load calibrated alpha masks (48×48 or 96×96)
+2. Detect watermark position via NCC (Normalized Cross-Correlation)
+3. Reverse alpha blend: `original = (pixel - α × 255) / (1 - α)`
+4. Output cleaned image
+
+### Video Processing
+
+1. Demux MP4 → video samples + audio samples (mp4box.js)
+2. Decode a calibration frame at ~15% to detect watermark position
+3. For each frame: decode (WebCodecs) → reverse blend → re-encode (WebCodecs)
+4. Mux new video + original audio → MP4 (mp4-muxer)
+
+## License
+
+MIT
