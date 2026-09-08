@@ -40,7 +40,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['"Space Grotesk"', 'system-ui', '-apple-system', 'sans-serif'],
       },
     },
   },

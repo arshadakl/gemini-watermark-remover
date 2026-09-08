@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'Gemini Watermark Remover',
+      title: 'Watermark Remover',
       htmlAttrs: { lang: 'en' },
       meta: [
         { charset: 'utf-8' },
@@ -18,6 +18,21 @@ export default defineNuxtConfig({
           name: 'description',
           content:
             'Remove Gemini AI watermarks from images and videos — 100% client-side, no upload to any server.',
+        },
+      ],
+      link: [
+        {
+          rel: 'preconnect',
+          href: 'https://fonts.googleapis.com',
+        },
+        {
+          rel: 'preconnect',
+          href: 'https://fonts.gstatic.com',
+          crossorigin: '',
+        },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap',
         },
       ],
     },

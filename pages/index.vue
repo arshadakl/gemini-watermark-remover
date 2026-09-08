@@ -16,6 +16,7 @@ useHead({
 
 const mode = ref<ProcessingMode>('image')
 const openFaq = ref<number | null>(null)
+const uploadBounce = ref(false)
 
 // ── Image state ───────────────────────────────────────────────────────────────
 const imageFile = ref<File | null>(null)
@@ -132,7 +133,9 @@ function switchMode(m: ProcessingMode) {
 }
 
 function scrollToTool() {
+  uploadBounce.value = true
   document.getElementById('tool')?.scrollIntoView({ behavior: 'smooth' })
+  setTimeout(() => { uploadBounce.value = false }, 1200)
 }
 </script>
 
@@ -147,7 +150,7 @@ function scrollToTool() {
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
           </div>
-          <span class="text-lg font-bold">Gemini Watermark Remover</span>
+          <span class="text-lg font-bold">Watermark Remover</span>
         </div>
         <div class="hidden items-center gap-8 md:flex">
           <a href="#features" class="text-sm text-gray-400 transition hover:text-white">Features</a>
@@ -173,11 +176,10 @@ function scrollToTool() {
             A cleaner internet, one image at a time
           </div>
           <h1 class="mb-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl">
-            Remove AI-generated watermarks from
-            <span class="text-brand-400">images and videos</span>
+            Remove <span class="text-brand-400">Gemini AI watermarks</span> from images and videos
           </h1>
           <p class="mb-10 max-w-xl text-lg text-gray-400">
-            Clean, high-quality results — 100% in your browser. No uploads. No waiting.
+            Clean the Gemini sparkle watermark from your AI-generated content — 100% in your browser. No uploads. No waiting.
           </p>
         </div>
 
@@ -227,7 +229,7 @@ function scrollToTool() {
               @click="($refs.imageInput as HTMLInputElement).click()"
             >
               <input ref="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" @change="(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) onImageSelect(f) }" />
-              <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500/10">
+              <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500/10" :class="{ 'animate-bounce': uploadBounce }">
                 <svg class="h-7 w-7 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
@@ -243,7 +245,7 @@ function scrollToTool() {
               @click="videoSupport.supported && ($refs.videoInput as HTMLInputElement).click()"
             >
               <input ref="videoInput" type="file" accept="video/mp4" class="hidden" @change="(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) onVideoSelect(f) }" />
-              <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500/10">
+              <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500/10" :class="{ 'animate-bounce': uploadBounce }">
                 <svg class="h-7 w-7 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
@@ -558,7 +560,7 @@ function scrollToTool() {
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
           </div>
-          <span class="text-sm font-semibold">Gemini Watermark Remover</span>
+          <span class="text-sm font-semibold">Watermark Remover</span>
         </div>
         <p class="text-xs text-gray-600">All processing happens in your browser. No files are uploaded to any server.</p>
       </div>
