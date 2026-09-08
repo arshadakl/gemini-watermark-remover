@@ -1,35 +1,48 @@
 <script setup lang="ts">
 /**
- * Reusable download button that triggers a Blob download.
+ * Reusable download button that triggers a Blob or URL download.
  */
 
 const props = defineProps<{
-  /** The Blob to download. */
-  blob: Blob | null
+  /** The Blob to download (takes priority over url). */
+  blob?: Blob | null
+  /** Alternative: a URL (data: or object:) to download. */
+  url?: string | null
   /** Suggested filename including extension. */
   filename: string
   /** Whether the button is disabled. */
   disabled?: boolean
 }>()
 
+const canDownload = computed(() => !props.disabled && (props.blob || props.url))
+
 function download() {
-  if (!props.blob || props.disabled) return
-  const url = URL.createObjectURL(props.blob)
+  if (!canDownload.value) return
+
+  if (props.blob) {
+    const objectUrl = URL.createObjectURL(props.blob)
+    triggerDownload(objectUrl)
+    URL.revokeObjectURL(objectUrl)
+  } else if (props.url) {
+    triggerDownload(props.url)
+  }
+}
+
+function triggerDownload(href: string) {
   const a = document.createElement('a')
-  a.href = url
+  a.href = href
   a.download = props.filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(url)
 }
 </script>
 
 <template>
   <button
-    :disabled="disabled || !blob"
+    :disabled="!canDownload"
     class="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
-    :class="blob && !disabled
+    :class="canDownload
       ? 'bg-gradient-to-r from-brand-500 to-brand-600 shadow-md hover:shadow-lg hover:from-brand-600 hover:to-brand-700 active:scale-[0.98]'
       : 'bg-gray-300'"
     @click="download"

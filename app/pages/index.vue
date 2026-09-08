@@ -212,14 +212,8 @@ function switchMode(m: ProcessingMode) {
           </button>
           <DownloadButton
             v-if="cleanedImageUrl"
-            :blob="null"
+            :url="cleanedImageUrl"
             :filename="`cleaned-${imageFile.name}`"
-            @click.prevent="
-              const a = document.createElement('a');
-              a.href = cleanedImageUrl!;
-              a.download = `cleaned-${imageFile.name}`;
-              a.click();
-            "
           >
             Download
           </DownloadButton>
@@ -275,7 +269,7 @@ function switchMode(m: ProcessingMode) {
           </button>
           <DownloadButton
             v-if="videoDownloadUrl"
-            :blob="videoResult"
+            :url="videoDownloadUrl"
             :filename="`cleaned-${videoFile.name}`"
           >
             Download
