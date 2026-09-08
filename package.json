@@ -20,5 +20,10 @@
     "@nuxtjs/tailwindcss": "^6.14.0",
     "typescript": "^7.0.2",
     "vue-tsc": "^3.3.11"
+  },
+  "optionalDependencies": {
+    "@oxc-minify/binding-linux-x64-gnu": "^0.143.0",
+    "@oxc-parser/binding-linux-x64-gnu": "^0.143.0",
+    "@oxc-transform/binding-linux-x64-gnu": "^0.143.0"
   }
 }
