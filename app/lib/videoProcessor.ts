@@ -509,17 +509,21 @@ export async function purifyVideo(
   const decoder = new VideoDecoder({
     output: (frame: any) => {
       try {
+        const tsMicro = frame.timestamp
+        const durMicro = frame.duration
         patchCtx.drawImage(frame, 0, 0, width, height)
         frame.close()
         const imageData = patchCtx.getImageData(0, 0, width, height)
         const cleaned = inpaintFrame(imageData, { ...chosen, alphaMap: chosen.alphaMap as any })
 
-        const vf = new VideoFrame(cleaned.data.buffer, {
+        const init: any = {
           format: 'RGBA',
           codedWidth: width,
           codedHeight: height,
-          timestamp: (videoSamples[processed]?.cts ?? 0) * 1e6 / timescale,
-        })
+          timestamp: tsMicro,
+        }
+        if (durMicro != null) init.duration = durMicro
+        const vf = new VideoFrame(cleaned.data.buffer, init)
         encoder.encode(vf, { keyFrame: processed % keyInterval === 0 })
         vf.close()
         processed++
