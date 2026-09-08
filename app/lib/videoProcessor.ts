@@ -294,7 +294,7 @@ export async function purifyVideo(
 ): Promise<Blob> {
   const onProgress = options.onProgress
 
-  if (typeof MP4Box === 'undefined') throw new Error('MP4Box library not loaded')
+  if (typeof createFile !== 'function') throw new Error('MP4Box library not loaded')
   if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
     throw new Error('WebCodecs not available in this browser')
   }
