@@ -389,13 +389,19 @@ export async function purifyVideo(
   })
   encoder.configure(encoderConfig)
 
-  // Calibrate on frame at ~15%
+  // Calibrate on frame at ~15% — but must start from a key frame
   report(onProgress, 'analyze', 0)
 
-  const calFrame = videoSamples[Math.floor(0.15 * totalFrames)]
-  if (calFrame) {
+  const targetIdx = Math.floor(0.15 * totalFrames)
+  // Find the nearest key frame at or before the target
+  let calStartIdx = targetIdx
+  while (calStartIdx > 0 && !videoSamples[calStartIdx].is_sync) calStartIdx--
+
+  const calSamples = videoSamples.slice(calStartIdx, targetIdx + 1)
+  if (calSamples.length) {
     const decoder = new VideoDecoder({
       output: (frame: any) => {
+        // Only score the last frame (the target), discard intermediate frames
         const cvs = new OffscreenCanvas(width, height)
         const ctx = cvs.getContext('2d', { willReadFrequently: true })!
         ctx.drawImage(frame, 0, 0, width, height)
@@ -419,12 +425,15 @@ export async function purifyVideo(
       description: videoDescription || undefined,
     })
 
-    decoder.decode(new EncodedVideoChunk({
-      type: calFrame.is_sync ? 'key' : 'delta',
-      timestamp: (calFrame.cts * 1e6) / calFrame.timescale,
-      duration: (calFrame.duration * 1e6) / calFrame.timescale,
-      data: calFrame.data,
-    }))
+    // Feed from the key frame up to the target
+    for (const s of calSamples) {
+      decoder.decode(new EncodedVideoChunk({
+        type: s.is_sync ? 'key' : 'delta',
+        timestamp: (s.cts * 1e6) / s.timescale,
+        duration: (s.duration * 1e6) / s.timescale,
+        data: s.data,
+      }))
+    }
     await decoder.flush()
     decoder.close()
   }
@@ -440,13 +449,18 @@ export async function purifyVideo(
     return { cvs, ctx }
   })()
 
-  // Estimate opacity
+  // Estimate opacity — decode from key frames for each sample
   const histogram: Record<number, number> = {}
   for (const op of OPACITY_LEVELS) histogram[op] = 0
-  // Sample a few frames for opacity estimation
-  for (let fi = 0; fi < Math.min(5, totalFrames); fi++) {
-    const s = videoSamples[Math.floor(fi * totalFrames / 5)]
-    if (!s) continue
+  const sampleCount = Math.min(5, totalFrames)
+  for (let fi = 0; fi < sampleCount; fi++) {
+    const targetSampleIdx = Math.floor(fi * totalFrames / sampleCount)
+    // Find nearest key frame at or before this index
+    let startIdx = targetSampleIdx
+    while (startIdx > 0 && !videoSamples[startIdx].is_sync) startIdx--
+    const samples = videoSamples.slice(startIdx, targetSampleIdx + 1)
+    if (!samples.length) continue
+
     const d = new VideoDecoder({
       output: (frame: any) => {
         calData.ctx.drawImage(frame, 0, 0, width, height)
@@ -458,7 +472,14 @@ export async function purifyVideo(
       error: () => {},
     })
     d.configure({ codec: videoTrack.codec, codedWidth: width, codedHeight: height, description: videoDescription || undefined })
-    d.decode(new EncodedVideoChunk({ type: s.is_sync ? 'key' : 'delta', timestamp: (s.cts * 1e6) / s.timescale, duration: (s.duration * 1e6) / s.timescale, data: s.data }))
+    for (const s of samples) {
+      d.decode(new EncodedVideoChunk({
+        type: s.is_sync ? 'key' : 'delta',
+        timestamp: (s.cts * 1e6) / s.timescale,
+        duration: (s.duration * 1e6) / s.timescale,
+        data: s.data,
+      }))
+    }
     await d.flush()
     d.close()
   }
