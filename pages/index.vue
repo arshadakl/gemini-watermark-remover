@@ -45,6 +45,7 @@ const videoDownloadUrl = ref<string | null>(null)
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 const isBusy = computed(() => imageProcessing.value || videoProcessing.value)
+const isDone = computed(() => (mode.value === 'image' && !!cleanedImageUrl.value) || (mode.value === 'video' && !!videoResult.value))
 const currentError = computed(() => imageError.value || videoError.value)
 const videoSupport = computed(() => checkVideoSupport())
 
@@ -127,7 +128,6 @@ function resetAll() {
 }
 
 function switchMode(m: ProcessingMode) {
-  resetAll()
   mode.value = m
 }
 
@@ -219,9 +219,10 @@ function scrollToTool() {
             {{ videoSupport.reason }}
           </div>
 
-          <!-- Upload Area (Image mode) -->
-          <template v-if="mode === 'image' && !imageFile">
+          <!-- Upload Area (no file selected) -->
+          <template v-if="!imageFile && !videoFile">
             <div
+              v-if="mode === 'image'"
               class="cursor-pointer rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center transition-all hover:border-brand-500/30 hover:bg-brand-500/5"
               @click="($refs.imageInput as HTMLInputElement).click()"
             >
@@ -235,11 +236,8 @@ function scrollToTool() {
               <p class="text-xs text-gray-500">Drag & drop or click to upload</p>
               <p class="mt-2 text-xs text-gray-600">PNG, JPG, WEBP — any size</p>
             </div>
-          </template>
-
-          <!-- Upload Area (Video mode) -->
-          <template v-if="mode === 'video' && !videoFile">
             <div
+              v-else
               class="cursor-pointer rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center transition-all hover:border-brand-500/30 hover:bg-brand-500/5"
               :class="{ 'pointer-events-none opacity-40': !videoSupport.supported }"
               @click="videoSupport.supported && ($refs.videoInput as HTMLInputElement).click()"
@@ -256,68 +254,70 @@ function scrollToTool() {
             </div>
           </template>
 
-          <!-- Image Preview + Process -->
-          <template v-if="mode === 'image' && imageFile">
-            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div class="mb-4 grid grid-cols-2 gap-4">
-                <div>
-                  <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">Original</p>
-                  <img :src="imagePreviewUrl!" class="w-full rounded-xl object-contain" style="max-height: 220px;" alt="Original" />
-                </div>
-                <div>
-                  <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">Cleaned</p>
-                  <img v-if="cleanedImageUrl" :src="cleanedImageUrl" class="w-full rounded-xl object-contain" style="max-height: 220px;" alt="Cleaned" />
-                  <div v-else class="flex h-[200px] items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] text-xs text-gray-600">
-                    Waiting...
-                  </div>
-                </div>
+          <!-- File Preview Card (file selected) -->
+          <template v-if="(mode === 'image' && imageFile) || (mode === 'video' && videoFile)">
+            <div class="overflow-hidden rounded-3xl border border-brand-500/20 bg-[#0d1a0d] shadow-[0_0_60px_rgba(132,204,22,0.06)]">
+              <!-- Header -->
+              <div class="px-8 pt-8 text-center">
+                <h2 class="mb-2 text-2xl font-bold">Preview <span class="text-brand-400">your file</span></h2>
+                <p class="text-sm text-gray-400">Review your {{ mode }} and remove watermarks with one click.</p>
               </div>
-              <p class="mb-4 text-xs text-gray-500">
-                {{ imageFile.name }} · {{ formatFileSize(imageFile.size) }}
-                <template v-if="imageResult?.detection">
-                  · NCC={{ imageResult.detection.ncc.toFixed(3) }}
-                </template>
-              </p>
-              <div class="flex gap-3">
-                <button
-                  class="flex-1 rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-black transition hover:bg-brand-400 disabled:opacity-50"
-                  :disabled="isBusy"
-                  @click="handleImageProcess"
-                >
-                  {{ imageProcessing ? 'Processing...' : 'Remove Watermark' }}
-                </button>
-                <a
-                  v-if="cleanedImageUrl"
-                  :href="cleanedImageUrl"
-                  :download="`cleaned-${imageFile.name}`"
-                  class="inline-flex items-center gap-2 rounded-xl border border-brand-500/30 px-5 py-3 text-sm font-semibold text-brand-400 transition hover:bg-brand-500/10"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                  Download
-                </a>
-                <button
-                  class="rounded-xl border border-white/10 px-4 py-3 text-sm text-gray-400 transition hover:bg-white/5 hover:text-white"
-                  @click="resetImageAll"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </template>
 
-          <!-- Video Preview + Process -->
-          <template v-if="mode === 'video' && videoFile">
-            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div class="mb-4">
-                <video :src="videoPreviewUrl!" controls class="w-full rounded-xl" style="max-height: 280px;" />
+              <!-- Preview area -->
+              <div class="px-8 pt-6">
+                <div class="relative overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                  <!-- Image preview -->
+                  <template v-if="mode === 'image' && imageFile">
+                    <img :src="imagePreviewUrl!" class="w-full object-contain" style="max-height: 320px;" alt="Preview" />
+                    <!-- Cleaned overlay -->
+                    <div v-if="cleanedImageUrl" class="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div class="text-center">
+                        <p class="mb-2 text-xs font-semibold text-brand-400 uppercase tracking-wider">Cleaned</p>
+                        <img :src="cleanedImageUrl" class="mx-auto max-h-[260px] rounded-xl object-contain" alt="Cleaned" />
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Video preview -->
+                  <template v-if="mode === 'video' && videoFile">
+                    <video :src="videoPreviewUrl!" controls class="w-full" style="max-height: 320px;" />
+                  </template>
+                </div>
               </div>
-              <p class="mb-4 text-xs text-gray-500">
-                {{ videoFile.name }} · {{ formatFileSize(videoFile.size) }}
-              </p>
-              <!-- Progress -->
-              <div v-if="videoProcessing" class="mb-4">
+
+              <!-- File info bar -->
+              <div class="mx-8 mt-4 flex items-center gap-4 rounded-xl border border-white/5 bg-white/[0.03] px-5 py-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">
+                  <svg v-if="mode === 'video'" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                  <svg v-else class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="truncate text-sm font-medium text-white">{{ (imageFile || videoFile)!.name }}</p>
+                  <p class="text-xs text-gray-500">
+                    {{ formatFileSize((imageFile || videoFile)!.size) }}
+                  </p>
+                </div>
+                <div v-if="imageResult?.removed || videoResult" class="flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1">
+                  <svg class="h-3.5 w-3.5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  <span class="text-xs font-semibold text-brand-400">Done</span>
+                </div>
+                <div v-else class="flex items-center gap-1.5 rounded-full border border-brand-500/20 bg-brand-500/5 px-3 py-1">
+                  <svg class="h-3.5 w-3.5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  <span class="text-xs font-semibold text-brand-400">Ready</span>
+                </div>
+              </div>
+
+              <!-- Progress bar (processing) -->
+              <div v-if="videoProcessing" class="mx-8 mt-3">
                 <div class="mb-2 flex items-center justify-between">
                   <span class="text-xs text-gray-400">{{ stageLabel }}</span>
                   <span class="text-xs font-semibold text-brand-400">{{ progressPercent }}%</span>
@@ -329,31 +329,90 @@ function scrollToTool() {
                   />
                 </div>
               </div>
-              <div class="flex gap-3">
-                <button
-                  class="flex-1 rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-black transition hover:bg-brand-400 disabled:opacity-50"
-                  :disabled="isBusy || !videoSupport.supported"
-                  @click="handleVideoProcess"
-                >
-                  {{ videoProcessing ? 'Processing...' : 'Remove Watermark' }}
-                </button>
-                <a
-                  v-if="videoDownloadUrl"
-                  :href="videoDownloadUrl"
-                  :download="`cleaned-${videoFile.name}`"
-                  class="inline-flex items-center gap-2 rounded-xl border border-brand-500/30 px-5 py-3 text-sm font-semibold text-brand-400 transition hover:bg-brand-500/10"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                  Download
-                </a>
-                <button
-                  class="rounded-xl border border-white/10 px-4 py-3 text-sm text-gray-400 transition hover:bg-white/5 hover:text-white"
-                  @click="resetVideoAll"
-                >
-                  Reset
-                </button>
+
+              <!-- Action buttons -->
+              <div class="px-8 py-6">
+                <div class="flex gap-3">
+                  <button
+                    class="flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition disabled:opacity-50"
+                    :class="isDone && !isBusy ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-brand-500 text-black hover:bg-brand-400'"
+                    :disabled="isBusy || isDone || (mode === 'video' && !videoSupport.supported)"
+                    @click="mode === 'image' ? handleImageProcess() : handleVideoProcess()"
+                  >
+                    <!-- Spinner when processing -->
+                    <svg v-if="isBusy" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <!-- Sparkle icon when idle/done -->
+                    <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                    </svg>
+                    {{ isBusy ? 'Processing...' : isDone ? 'Watermark Removed' : 'Remove Watermark' }}
+                  </button>
+                  <a
+                    v-if="(mode === 'image' && cleanedImageUrl) || (mode === 'video' && videoDownloadUrl)"
+                    :href="mode === 'image' ? cleanedImageUrl! : videoDownloadUrl!"
+                    :download="mode === 'image' ? `cleaned-${imageFile!.name}` : `cleaned-${videoFile!.name}`"
+                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Download
+                  </a>
+                  <a
+                    v-else
+                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-gray-600 cursor-not-allowed"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Download
+                  </a>
+                  <button
+                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5"
+                    @click="resetAll"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <!-- Trust badges -->
+              <div class="border-t border-white/5 px-8 py-4">
+                <div class="flex items-center justify-center gap-8 text-center">
+                  <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                    <div>
+                      <p class="text-xs font-semibold text-white">Private</p>
+                      <p class="text-[10px] text-gray-500">Your files stay in your browser</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                    </svg>
+                    <div>
+                      <p class="text-xs font-semibold text-white">Browser-based</p>
+                      <p class="text-[10px] text-gray-500">No installation needed</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                    </svg>
+                    <div>
+                      <p class="text-xs font-semibold text-white">No upload</p>
+                      <p class="text-[10px] text-gray-500">100% local processing</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
