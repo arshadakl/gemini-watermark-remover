@@ -53,7 +53,14 @@ function extractVideoDescription(file: any, track: any): Uint8Array | null {
     if (!DS) return null
     const ds = new DS(undefined, 0, DS.BIG_ENDIAN)
     cfg.write(ds)
-    return new Uint8Array(ds.buffer, 8)
+    // The record starts after the 8-byte box header (size + type).
+    // Only copy the bytes actually written — the backing buffer is
+    // pre-allocated and padded, so `ds.buffer` alone includes trailing
+    // garbage that corrupts the decoder configuration.
+    const written = ds.getPosition()
+    const start = 8
+    const length = Math.max(0, written - start)
+    return new Uint8Array(ds.buffer.slice(start, start + length))
   }
   return null
 }
@@ -113,6 +120,10 @@ function demuxMp4(arrayBuffer: ArrayBuffer): Promise<DemuxResult> {
 
     if (!videoTrack) {
       reject(new Error('No video track found in file'))
+      return
+    }
+    if (videoSamples.length === 0) {
+      reject(new Error('No video samples extracted from file'))
       return
     }
     const videoDescription = extractVideoDescription(file, videoTrack)
@@ -315,12 +326,20 @@ export async function purifyVideo(
     )
   }
 
-  const totalFrames = videoSamples.length || 1
+  const totalFrames = videoSamples.length
   const timescale = videoSamples[0]?.timescale ?? videoTrack.timescale ?? 30000
   let avgDur = 0
   for (const s of videoSamples) avgDur += s.duration
   avgDur = avgDur / totalFrames || timescale / 30
   const fps = Math.max(1, Math.round(timescale / avgDur))
+  const avgDurMicro = (avgDur * 1e6) / timescale
+
+  // Presentation timestamps (µs) of source key frames — used to align the
+  // re-encoded GOP so the output keyframe cadence matches the input.
+  const syncTimestamps = new Set<number>()
+  for (const s of videoSamples) {
+    if (s.is_sync) syncTimestamps.add(Math.round((s.cts * 1e6) / s.timescale))
+  }
 
   console.log(`${TAG} Source: ${width}x${height}, ${totalFrames} frames, ~${fps}fps, codec ${videoTrack.codec}`)
 
@@ -372,7 +391,6 @@ export async function purifyVideo(
     height,
     bitrate: encodeBitrate,
     bitrateMode: 'variable',
-    framerate: fps,
     avc: { format: 'avc' },
   }
   let support = await VideoEncoder.isConfigSupported(encoderConfig)
@@ -449,25 +467,32 @@ export async function purifyVideo(
     return { cvs, ctx }
   })()
 
-  // Estimate opacity — decode from key frames for each sample
+  // Estimate opacity — decode from key frames, score only the target frame
   const histogram: Record<number, number> = {}
   for (const op of OPACITY_LEVELS) histogram[op] = 0
   const sampleCount = Math.min(5, totalFrames)
   for (let fi = 0; fi < sampleCount; fi++) {
-    const targetSampleIdx = Math.floor(fi * totalFrames / sampleCount)
+    const targetSampleIdx = Math.floor((fi * totalFrames) / sampleCount)
     // Find nearest key frame at or before this index
     let startIdx = targetSampleIdx
     while (startIdx > 0 && !videoSamples[startIdx].is_sync) startIdx--
     const samples = videoSamples.slice(startIdx, targetSampleIdx + 1)
     if (!samples.length) continue
 
+    // Score only the frame we actually want — the decoder output callback
+    // fires for every intermediate frame, which would skew the histogram.
+    const targetTsMicro = Math.round((videoSamples[targetSampleIdx].cts * 1e6) / videoSamples[targetSampleIdx].timescale)
+
     const d = new VideoDecoder({
       output: (frame: any) => {
-        calData.ctx.drawImage(frame, 0, 0, width, height)
+        const isTarget = Math.round(frame.timestamp) === targetTsMicro
+        if (isTarget) {
+          calData.ctx.drawImage(frame, 0, 0, width, height)
+          const imgData = calData.ctx.getImageData(0, 0, width, height)
+          const op = estimateOpacity(imgData, chosen)
+          histogram[op] = (histogram[op] || 0) + 1
+        }
         frame.close()
-        const imgData = calData.ctx.getImageData(0, 0, width, height)
-        const op = estimateOpacity(imgData, chosen)
-        histogram[op] = (histogram[op] || 0) + 1
       },
       error: () => {},
     })
@@ -503,6 +528,8 @@ export async function purifyVideo(
   const patchCanvas = new OffscreenCanvas(width, height)
   const patchCtx = patchCanvas.getContext('2d', { willReadFrequently: true })!
   let processed = 0
+  // Minimum GOP length used only as a safety net; real keyframes are forced
+  // on source sync-sample boundaries so seeking stays aligned with the input.
   const keyInterval = Math.max(1, fps * 2)
 
   let decodeError: any = null
@@ -521,13 +548,15 @@ export async function purifyVideo(
           codedWidth: width,
           codedHeight: height,
           timestamp: tsMicro,
+          duration: durMicro != null && durMicro > 0 ? durMicro : avgDurMicro,
         }
-        if (durMicro != null) init.duration = durMicro
+        const isSync = syncTimestamps.has(Math.round(tsMicro))
+        const keyFrame = processed === 0 || isSync || processed % keyInterval === 0
         const vf = new VideoFrame(cleaned.data.buffer, init)
-        encoder.encode(vf, { keyFrame: processed % keyInterval === 0 })
+        encoder.encode(vf, { keyFrame })
         vf.close()
         processed++
-        report(onProgress, 'process', processed / totalFrames)
+        report(onProgress, 'process', Math.min(1, processed / totalFrames))
       } catch (e) {
         decodeError = e
         console.error(TAG, 'frame patch error', e)
@@ -545,9 +574,17 @@ export async function purifyVideo(
   })
 
   report(onProgress, 'process', 0)
+
+  // Backpressure pump — feed samples while respecting the decode/encode queue
+  // caps so the encoder is never overwhelmed (this was the source of the
+  // intermittent dropped/corrupt-frame glitches on long or high-res clips).
+  const MAX_QUEUE = 16
   let framesDecoded = 0
   for (const s of videoSamples) {
     if (decodeError) throw decodeError
+    while (decoder.decodeQueueSize > MAX_QUEUE || encoder.encodeQueueSize > MAX_QUEUE) {
+      await new Promise(r => setTimeout(r, 0))
+    }
     decoder.decode(new EncodedVideoChunk({
       type: s.is_sync ? 'key' : 'delta',
       timestamp: (s.cts * 1e6) / s.timescale,
@@ -555,10 +592,14 @@ export async function purifyVideo(
       data: s.data,
     }))
     framesDecoded++
-    if (framesDecoded % 24 === 0) await new Promise(r => setTimeout(r, 0))
+    if (framesDecoded % 16 === 0) await new Promise(r => setTimeout(r, 0))
   }
 
   await decoder.flush()
+  // Wait for the encoder to fully drain before finalizing.
+  while (encoder.encodeQueueSize > 0) {
+    await new Promise(r => setTimeout(r, 0))
+  }
   await encoder.flush()
   if (decodeError) throw decodeError
   if (encodeError) throw encodeError
@@ -568,33 +609,44 @@ export async function purifyVideo(
   // Copy audio verbatim
   if (audioTrack && audioSamples.length) {
     try {
-      const sr = audioTrack.audio.sample_rate
-      const ch = audioTrack.audio.channel_count
-      let srIdx = AAC_SAMPLE_RATES.indexOf(sr)
-      if (srIdx < 0) srIdx = 4
-      const audioMeta = {
-        decoderConfig: {
-          codec: 'mp4a.40.2',
-          sampleRate: sr,
-          numberOfChannels: ch,
-          description: new Uint8Array([
-            (16 | (srIdx >> 1)) & 0xff,
-            (((srIdx & 1) << 7) | (ch << 3)) & 0xff,
-          ]),
-        },
+      const audioCodec = audioTrack.codec || ''
+      // Only AAC can be safely muxed via the 'aac' codec string + raw copy.
+      if (!audioCodec.startsWith('mp4a')) {
+        console.warn(`${TAG} Unsupported audio codec '${audioCodec}' — output will be silent`)
+      } else {
+        const sr = audioTrack.audio.sample_rate
+        const ch = audioTrack.audio.channel_count
+        let srIdx = AAC_SAMPLE_RATES.indexOf(sr)
+        if (srIdx < 0) {
+          // Closest supported rate instead of silently assuming 44100.
+          srIdx = AAC_SAMPLE_RATES.reduce((best, rate, i) =>
+            Math.abs(rate - sr) < Math.abs(AAC_SAMPLE_RATES[best] - sr) ? i : best, 0)
+          console.warn(`${TAG} Non-standard audio sample rate ${sr} — mapping to ${AAC_SAMPLE_RATES[srIdx]}`)
+        }
+        const audioMeta = {
+          decoderConfig: {
+            codec: 'mp4a.40.2',
+            sampleRate: sr,
+            numberOfChannels: ch,
+            description: new Uint8Array([
+              (16 | (srIdx >> 1)) & 0xff,
+              (((srIdx & 1) << 7) | (ch << 3)) & 0xff,
+            ]),
+          },
+        }
+        for (const s of audioSamples) {
+          muxer.addAudioChunk(
+            new EncodedAudioChunk({
+              type: 'key',
+              timestamp: (s.cts * 1e6) / s.timescale,
+              duration: (s.duration * 1e6) / s.timescale,
+              data: s.data,
+            }),
+            audioMeta,
+          )
+        }
+        console.log(`${TAG} Copied ${audioSamples.length} audio samples`)
       }
-      for (const s of audioSamples) {
-        muxer.addAudioChunk(
-          new EncodedAudioChunk({
-            type: 'key',
-            timestamp: (s.cts * 1e6) / s.timescale,
-            duration: (s.duration * 1e6) / s.timescale,
-            data: s.data,
-          }),
-          audioMeta,
-        )
-      }
-      console.log(`${TAG} Copied ${audioSamples.length} audio samples`)
     } catch (e) {
       console.warn(`${TAG} Audio copy failed — output will be silent:`, e)
     }
