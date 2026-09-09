@@ -96,6 +96,7 @@ const videoDownloadUrl = ref<string | null>(null)
 const isBusy = computed(() => imageProcessing.value || videoProcessing.value)
 const isDone = computed(() => (mode.value === 'image' && !!cleanedImageUrl.value) || (mode.value === 'video' && !!videoResult.value))
 const currentError = computed(() => imageError.value || videoError.value)
+const currentFile = computed(() => mode.value === 'image' ? imageFile.value : videoFile.value)
 const videoSupport = ref({ supported: false, reason: '' as string | undefined })
 
 // Correct the download filename to match the actual output format (a GIF
@@ -401,7 +402,7 @@ const latestPosts = [
           </div>
 
           <!-- Upload Area (no file selected) -->
-          <template v-if="!imageFile && !videoFile">
+          <template v-if="mode === 'image' ? !imageFile : !videoFile">
             <div
               v-if="mode === 'image'"
               class="cursor-pointer rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center transition-all hover:border-brand-500/30 hover:bg-brand-500/5"
@@ -499,9 +500,9 @@ const latestPosts = [
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="truncate text-sm font-medium text-white">{{ (imageFile || videoFile)!.name }}</p>
+                  <p class="truncate text-sm font-medium text-white">{{ currentFile!.name }}</p>
                   <p class="text-xs text-gray-500">
-                    {{ formatFileSize((imageFile || videoFile)!.size) }}
+                    {{ formatFileSize(currentFile!.size) }}
                   </p>
                 </div>
                 <div v-if="imageResult?.removed || videoResult" class="flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1">
