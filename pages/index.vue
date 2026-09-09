@@ -7,10 +7,51 @@ import type { ProcessingMode } from '~/lib/types'
 import { checkVideoSupport, formatFileSize } from '~/lib/utils'
 import { SUPPORTED_VIDEO_DIMS } from '~/lib/constants'
 
+const route = useRoute()
+const siteUrl = 'https://watermark-remover.arshadakl.in'
+
+useSeoMeta({
+  title: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+  description:
+    'Free Gemini watermark remover — strip the Gemini, Veo, Imagen, Nano Banana and Google Flow sparkle from images and videos. 100% in your browser. No uploads. No signup.',
+  ogTitle: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+  ogDescription:
+    'Strip the Gemini sparkle from images and videos in seconds. 100% browser-based, no uploads.',
+  ogImage: `${siteUrl}/og-image.png`,
+  ogUrl: siteUrl + route.path,
+  ogType: 'website',
+  ogSiteName: 'Watermark Remover',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+  twitterDescription: 'Strip the Gemini sparkle from images and videos. Free, private, 100% in your browser.',
+  twitterImage: `${siteUrl}/og-image.png`,
+  robots: 'index, follow, max-image-preview:large',
+})
+
 useHead({
-  title: 'Gemini Watermark Remover — Remove AI Watermarks from Images & Videos',
-  meta: [
-    { name: 'description', content: 'Remove AI-generated watermarks from images and videos — 100% in your browser. No uploads. No waiting.' },
+  link: [{ rel: 'canonical', href: siteUrl + route.path }],
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: [
+          { '@type': 'Question', name: 'Is my data really private?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. All processing happens directly in your browser using Web APIs. No files are ever uploaded to any server. Your images and videos never leave your device.' } },
+          { '@type': 'Question', name: 'What file types are supported?', acceptedAnswer: { '@type': 'Answer', text: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Supported video resolutions: 1280×720, 720×1280, 1920×1080, and 1080×1920.' } },
+          { '@type': 'Question', name: 'Can it remove all AI watermarks?', acceptedAnswer: { '@type': 'Answer', text: 'This tool removes the visible Gemini sparkle watermark added to AI-generated content. It does not remove invisible watermarks like Google\'s SynthID, which are embedded across all pixels.' } },
+          { '@type': 'Question', name: 'Is it free to use?', acceptedAnswer: { '@type': 'Answer', text: 'Yes! The tool is completely free. The watermark removal algorithm runs entirely in your browser using WebCodecs and Canvas APIs.' } },
+          { '@type': 'Question', name: 'Why do I need Chrome or Edge for video?', acceptedAnswer: { '@type': 'Answer', text: 'Video processing uses the WebCodecs API, which is currently only available in Chromium-based browsers (Chrome, Edge, Brave, Opera). Image processing works in all modern browsers.' } },
+          { '@type': 'Question', name: 'Does it work with Veo and Google Flow videos?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. The video pipeline detects and removes the visible Gemini and Veo sparkle on every frame of MP4 files exported from Gemini, Veo, and Google Flow. Supported resolutions are 1280×720, 720×1280, 1920×1080, and 1080×1920.' } },
+          { '@type': 'Question', name: 'Does it remove the SynthID invisible watermark?', acceptedAnswer: { '@type': 'Answer', text: 'No. SynthID is baked into every pixel by Google DeepMind and is not user-detectable. This tool only removes the visible sparkle logo in the corner. SynthID detection requires Google\'s own verification tools.' } },
+          { '@type': 'Question', name: 'Is removing the Gemini watermark legal?', acceptedAnswer: { '@type': 'Answer', text: 'Removing the watermark from content you generated yourself is fine. Do not use this tool to strip watermarks from copyrighted material you do not own. We are not affiliated with Google.' } },
+          { '@type': 'Question', name: "What's the difference between the 48×48 and 96×96 watermarks?", acceptedAnswer: { '@type': 'Answer', text: 'Older Gemini exports use a 48×48 sparkle in the corner. Newer exports (Gemini 2.0 Flash and later) use a 96×96 sparkle. The tool auto-detects which one is present and uses the matching alpha map to reverse the blend.' } },
+          { '@type': 'Question', name: 'Why is the Gemini watermark optional now?', acceptedAnswer: { '@type': 'Answer', text: 'On August 14, 2026 Google added a Media Watermark toggle inside Gemini that lets users turn the visible sparkle off for new generations. Images and videos created before that date, and any export from third-party tools, still need cleaning.' } },
+          { '@type': 'Question', name: 'Can I remove watermarks in bulk?', acceptedAnswer: { '@type': 'Answer', text: 'The web tool processes one image or one video at a time. For bulk workflows, use the open-source Node.js library or CLI from the project README.' } },
+          { '@type': 'Question', name: 'Does this work with Nano Banana and Imagen?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Nano Banana, Imagen, and Gemini all stamp the same sparkle watermark in the bottom-right corner. The detector works on all three.' } },
+        ],
+      }),
+    },
   ],
 })
 
@@ -48,15 +89,25 @@ const videoDownloadUrl = ref<string | null>(null)
 const isBusy = computed(() => imageProcessing.value || videoProcessing.value)
 const isDone = computed(() => (mode.value === 'image' && !!cleanedImageUrl.value) || (mode.value === 'video' && !!videoResult.value))
 const currentError = computed(() => imageError.value || videoError.value)
-const videoSupport = computed(() => checkVideoSupport())
+const videoSupport = ref({ supported: false, reason: '' as string | undefined })
+onMounted(() => {
+  videoSupport.value = checkVideoSupport()
+})
 
 // ── FAQ data ──────────────────────────────────────────────────────────────────
 const faqs = [
   { q: 'Is my data really private?', a: 'Yes. All processing happens directly in your browser using Web APIs. No files are ever uploaded to any server. Your images and videos never leave your device.' },
-  { q: 'What file types are supported?', a: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Supported video resolutions: 1280×720, 720×1280, 1920×1080, and 1080×1920.' },
-  { q: 'Can it remove all AI watermarks?', a: 'This tool removes the visible Gemini sparkle watermark added to AI-generated content. It does not remove invisible watermarks like Google\'s SynthID, which are embedded across all pixels.' },
-  { q: 'Is it free to use?', a: 'Yes! The tool is completely free. The watermark removal algorithm runs entirely in your browser using WebCodecs and Canvas APIs.' },
-  { q: 'Why do I need Chrome or Edge for video?', a: 'Video processing uses the WebCodecs API, which is currently only available in Chromium-based browsers (Chrome, Edge, Brave, Opera). Image processing works in all modern browsers.' },
+  { q: 'What file types are supported?', a: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported at 1280×720, 720×1280, 1920×1080, and 1080×1920.' },
+  { q: 'Does it work with Veo and Google Flow videos?', a: 'Yes. The video pipeline detects and removes the visible Gemini, Veo, and Google Flow sparkle on every frame. Audio is preserved bit-for-bit.' },
+  { q: 'Can it remove SynthID or other invisible watermarks?', a: 'No. SynthID is an invisible pattern baked into every pixel by Google DeepMind. This tool only removes the visible sparkle logo. SynthID detection requires Google\'s own verification tools.' },
+  { q: 'Does it work with Nano Banana and Imagen?', a: 'Yes. Nano Banana, Imagen, and Gemini all stamp the same sparkle watermark in the corner. The detector auto-handles all three and both 48×48 and 96×96 sizes.' },
+  { q: 'Why do I need Chrome or Edge for video?', a: 'Video processing uses the WebCodecs API, which is currently only available in Chromium-based browsers (Chrome, Edge, Brave, Opera 94+). Image processing works in every modern browser.' },
+  { q: 'Is removing the Gemini watermark legal?', a: 'Removing the watermark from content you generated yourself is fine. Do not use this tool to strip watermarks from copyrighted material you do not own. This site is not affiliated with Google.' },
+  { q: "What's the difference between the 48×48 and 96×96 watermarks?", a: 'Older Gemini exports use a 48×48 sparkle; newer Gemini 2.0 Flash exports use a 96×96 sparkle. The tool auto-detects which size is present and applies the matching reverse alpha-blend.' },
+  { q: 'Why is the Gemini watermark optional now?', a: 'On August 14, 2026 Google added a Media Watermark toggle inside Gemini that lets users turn the visible sparkle off for new generations. Old files, and exports from third-party tools, still need cleaning — that is what this tool is for.' },
+  { q: 'Is it free to use?', a: 'Yes. The tool is completely free, no signup, no quota. The watermark removal algorithm runs entirely in your browser.' },
+  { q: 'Can I remove watermarks in bulk?', a: 'The web tool processes one image or one video at a time. For bulk workflows, the open-source Node.js library and CLI in the project README can handle folders.' },
+  { q: 'Will the cleaned file lose quality?', a: 'No. Reverse alpha blending restores the original pixel values mathematically, so outside the watermark zone every pixel is byte-identical to the source. Image resolution, video frame rate, bitrate, and audio are preserved.' },
 ]
 
 function toggleFaq(index: number) {
@@ -147,49 +198,67 @@ function scrollToTool() {
   document.getElementById('tool')?.scrollIntoView({ behavior: 'smooth' })
   setTimeout(() => { uploadBounce.value = false }, 1200)
 }
+
+// ── Supported models data ─────────────────────────────────────────────────────
+const models = [
+  { name: 'Gemini', desc: 'Original sparkle' },
+  { name: 'Nano Banana', desc: "Google's newest image model" },
+  { name: 'Imagen', desc: 'Imagen 3 and 4' },
+  { name: 'Veo', desc: 'Veo 2 and Veo 3 video' },
+  { name: 'Google Flow', desc: 'Filmmaking workspace' },
+  { name: 'AI Studio', desc: 'aistudio.google.com' },
+]
+
+// ── Latest blog posts (hardcoded so it works without a CMS) ───────────────────
+const latestPosts = [
+  {
+    slug: 'google-removes-visible-gemini-watermark',
+    title: 'Google Just Made Gemini Watermarks Optional — Here\'s What It Means',
+    excerpt: 'On August 14, 2026 Google added a Media Watermark toggle. Here is what changed, what stayed, and why you still need a remover for old files.',
+    date: '2026-09-01',
+    readTime: '6 min read',
+  },
+  {
+    slug: 'how-to-remove-gemini-watermark',
+    title: 'How to Remove the Gemini Watermark in 10 Seconds',
+    excerpt: 'Step-by-step guide to stripping the Gemini sparkle from any image — no Photoshop, no upload, no signup.',
+    date: '2026-08-22',
+    readTime: '4 min read',
+  },
+  {
+    slug: 'reverse-alpha-blending-explained',
+    title: 'Reverse Alpha Blending: The Math Behind Removing AI Watermarks',
+    excerpt: 'How a single equation reverses exactly what Google did to stamp the sparkle, and why no AI inpainting guesswork is needed.',
+    date: '2026-08-15',
+    readTime: '7 min read',
+  },
+]
 </script>
 
 <template>
   <div class="min-h-screen bg-[#0a0a0a]">
     <!-- Navigation -->
-    <nav class="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <div class="flex items-center gap-2">
-          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/20">
-            <svg class="h-5 w-5 text-brand-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-            </svg>
-          </div>
-          <span class="text-lg font-bold">Watermark Remover</span>
-        </div>
-        <div class="hidden items-center gap-8 md:flex">
-          <a href="#features" class="text-sm text-gray-400 transition hover:text-white">Features</a>
-          <a href="#how-it-works" class="text-sm text-gray-400 transition hover:text-white">How it works</a>
-          <a href="#faq" class="text-sm text-gray-400 transition hover:text-white">FAQ</a>
-        </div>
-        <button
-          class="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
-          @click="scrollToTool"
-        >
-          Get Started
-        </button>
-      </div>
-    </nav>
+    <SiteNav />
+    <!-- spacer for fixed nav -->
+    <div class="h-16" />
 
     <!-- Hero Section -->
-    <section class="relative overflow-hidden pb-8 pt-28">
+    <section class="relative overflow-hidden pb-8 pt-12">
       <div class="absolute inset-0 bg-gradient-to-b from-brand-500/5 to-transparent" />
       <div class="relative mx-auto max-w-6xl px-6">
         <div class="flex flex-col items-center text-center">
           <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-400">
             <span class="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
-            A cleaner internet, one image at a time
+            Free, private, no signup — works on every modern browser
           </div>
           <h1 class="mb-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl">
             Remove <span class="text-brand-400">Gemini AI watermarks</span> from images and videos
           </h1>
-          <p class="mb-10 max-w-xl text-lg text-gray-400">
-            Clean the Gemini sparkle watermark from your AI-generated content — 100% in your browser. No uploads. No waiting.
+          <p class="mb-4 max-w-2xl text-lg text-gray-400">
+            Strip the Gemini, Veo, Imagen, Nano Banana, and Google Flow sparkle from any AI-generated image or video. The reverse alpha-blending pipeline runs entirely in your browser — no uploads, no waiting, no quota.
+          </p>
+          <p class="mb-10 max-w-xl text-sm text-gray-500">
+            Supports Gemini · Veo · Imagen · Nano Banana · Google Flow · AI Studio
           </p>
         </div>
 
@@ -244,9 +313,9 @@ function scrollToTool() {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
               </div>
-              <p class="mb-1 text-sm font-semibold text-white">Upload your image</p>
+              <p class="mb-1 text-sm font-semibold text-white">Upload your Gemini image</p>
               <p class="text-xs text-gray-500">Drag & drop or click to upload</p>
-              <p class="mt-2 text-xs text-gray-600">PNG, JPG, WEBP — any size</p>
+              <p class="mt-2 text-xs text-gray-600">PNG, JPG, WEBP, GIF — any resolution</p>
             </div>
             <div
               v-else
@@ -260,7 +329,7 @@ function scrollToTool() {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
               </div>
-              <p class="mb-1 text-sm font-semibold text-white">Upload your video</p>
+              <p class="mb-1 text-sm font-semibold text-white">Upload your Gemini video</p>
               <p class="text-xs text-gray-500">Drag & drop or click to upload</p>
               <p class="mt-2 text-xs text-gray-600">MP4 — 1280×720, 720×1280, 1920×1080, 1080×1920</p>
             </div>
@@ -272,7 +341,7 @@ function scrollToTool() {
               <!-- Header -->
               <div class="px-8 pt-8 text-center">
                 <h2 class="mb-2 text-2xl font-bold">Preview <span class="text-brand-400">your file</span></h2>
-                <p class="text-sm text-gray-400">Review your {{ mode }} and remove watermarks with one click.</p>
+                <p class="text-sm text-gray-400">Review your {{ mode }} and remove the watermark with one click.</p>
               </div>
 
               <!-- Preview area -->
@@ -280,18 +349,18 @@ function scrollToTool() {
                 <div class="relative overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                   <!-- Image preview -->
                   <template v-if="mode === 'image' && imageFile">
-                    <img :src="imagePreviewUrl!" class="w-full object-contain" style="max-height: 320px;" alt="Preview" />
+                    <img :src="imagePreviewUrl!" class="w-full object-contain" style="max-height: 320px;" alt="Gemini image with watermark preview" />
                     <!-- Cleaned overlay -->
                     <div v-if="cleanedImageUrl" class="absolute inset-0 bg-black/60 flex items-center justify-center">
                       <div class="text-center">
                         <p class="mb-2 text-xs font-semibold text-brand-400 uppercase tracking-wider">Cleaned</p>
-                        <img :src="cleanedImageUrl" class="mx-auto max-h-[260px] rounded-xl object-contain" alt="Cleaned" />
+                        <img :src="cleanedImageUrl" class="mx-auto max-h-[260px] rounded-xl object-contain" alt="Gemini image with watermark removed" />
                       </div>
                     </div>
                   </template>
                   <!-- Video preview -->
                   <template v-if="mode === 'video' && videoFile">
-                    <video :src="videoPreviewUrl!" controls class="w-full" style="max-height: 320px;" />
+                    <video :src="videoPreviewUrl!" controls class="w-full" style="max-height: 320px;" aria-label="Gemini video with watermark preview" />
                   </template>
                 </div>
               </div>
@@ -440,7 +509,7 @@ function scrollToTool() {
     <!-- Features -->
     <section id="features" class="py-20">
       <div class="mx-auto max-w-6xl px-6">
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center">
             <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
               <svg class="h-6 w-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -457,7 +526,7 @@ function scrollToTool() {
               </svg>
             </div>
             <h3 class="mb-1 text-sm font-semibold">Super Fast</h3>
-            <p class="text-xs text-gray-500">Get results in seconds</p>
+            <p class="text-xs text-gray-500">Image: seconds. Video: ~5s per frame</p>
           </div>
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center">
             <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
@@ -471,11 +540,33 @@ function scrollToTool() {
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center">
             <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
               <svg class="h-6 w-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.563.563 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
               </svg>
             </div>
-            <h3 class="mb-1 text-sm font-semibold">High Quality</h3>
-            <p class="text-xs text-gray-500">Keeps the original resolution</p>
+            <h3 class="mb-1 text-sm font-semibold">Pixel-Perfect</h3>
+            <p class="text-xs text-gray-500">Byte-identical outside the watermark</p>
+          </div>
+          <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-center">
+            <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
+              <svg class="h-6 w-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg>
+            </div>
+            <h3 class="mb-1 text-sm font-semibold">All Models</h3>
+            <p class="text-xs text-gray-500">Gemini · Veo · Imagen · Nano Banana</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Supported Models -->
+    <section class="pb-20">
+      <div class="mx-auto max-w-6xl px-6">
+        <p class="mb-6 text-center text-xs font-semibold uppercase tracking-wider text-brand-400">Works on every Google AI surface</p>
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
+          <div v-for="m in models" :key="m.name" class="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-center">
+            <p class="text-sm font-semibold text-white">{{ m.name }}</p>
+            <p class="mt-0.5 text-[10px] text-gray-500">{{ m.desc }}</p>
           </div>
         </div>
       </div>
@@ -490,17 +581,17 @@ function scrollToTool() {
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
             <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-sm font-bold text-brand-400">1</div>
             <h3 class="mb-2 text-sm font-semibold">Upload your file</h3>
-            <p class="text-xs leading-relaxed text-gray-500">Drag and drop or click to upload an image or video with a Gemini watermark.</p>
+            <p class="text-xs leading-relaxed text-gray-500">Drag and drop or click to upload an image or MP4 with a Gemini, Veo, Imagen, Nano Banana, or Google Flow watermark.</p>
           </div>
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
             <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-sm font-bold text-brand-400">2</div>
-            <h3 class="mb-2 text-sm font-semibold">Remove watermark</h3>
-            <p class="text-xs leading-relaxed text-gray-500">Click "Remove Watermark" — the algorithm detects and removes the sparkle stamp using reverse alpha blending.</p>
+            <h3 class="mb-2 text-sm font-semibold">Reverse alpha blending</h3>
+            <p class="text-xs leading-relaxed text-gray-500">Click "Remove Watermark" — the algorithm detects the sparkle and uses the mathematically exact inverse of the blend Google applied to recover the original pixels.</p>
           </div>
           <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
             <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-sm font-bold text-brand-400">3</div>
             <h3 class="mb-2 text-sm font-semibold">Download clean result</h3>
-            <p class="text-xs leading-relaxed text-gray-500">Download the cleaned image or video. All processing happens locally — your files never leave your device.</p>
+            <p class="text-xs leading-relaxed text-gray-500">Download the cleaned image or MP4. Resolution, frame rate, bitrate, and audio are preserved. Nothing was ever uploaded — your files stayed on your device the whole time.</p>
           </div>
         </div>
       </div>
@@ -545,16 +636,46 @@ function scrollToTool() {
       </div>
     </section>
 
+    <!-- Latest from the blog -->
+    <section class="py-20">
+      <div class="mx-auto max-w-6xl px-6">
+        <div class="mb-10 flex items-end justify-between">
+          <div>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-brand-400">From the blog</p>
+            <h2 class="text-3xl font-bold">Guides, news, and deep-dives</h2>
+          </div>
+          <NuxtLink to="/blog" class="hidden text-sm text-brand-400 transition hover:text-brand-300 md:inline">View all posts →</NuxtLink>
+        </div>
+        <div class="grid gap-6 md:grid-cols-3">
+          <NuxtLink
+            v-for="post in latestPosts"
+            :key="post.slug"
+            :to="`/blog/${post.slug}`"
+            class="group flex flex-col rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition hover:border-brand-500/20"
+          >
+            <div class="mb-3 flex items-center gap-2 text-[10px] text-gray-500">
+              <time :datetime="post.date">{{ new Date(post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}</time>
+              <span>·</span>
+              <span>{{ post.readTime }}</span>
+            </div>
+            <h3 class="mb-2 text-base font-semibold leading-snug text-white transition group-hover:text-brand-400">{{ post.title }}</h3>
+            <p class="mb-4 flex-1 text-xs leading-relaxed text-gray-500">{{ post.excerpt }}</p>
+            <span class="text-xs font-semibold text-brand-400">Read more →</span>
+          </NuxtLink>
+        </div>
+      </div>
+    </section>
+
     <!-- CTA -->
     <section class="py-20">
       <div class="mx-auto max-w-4xl px-6">
         <div class="relative overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/10 via-brand-500/5 to-transparent p-10">
           <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-500/10 blur-3xl" />
           <div class="relative">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-brand-400">Ready for a cleaner content?</p>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-brand-400">Ready for cleaner content?</p>
             <h2 class="mb-4 text-3xl font-bold">Remove AI watermarks <span class="text-brand-400">today.</span></h2>
             <div class="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-              <p class="text-sm text-gray-400">Fast. Private. No uploads. Just clean results.</p>
+              <p class="text-sm text-gray-400">Fast. Private. No uploads. No signup. Pixel-perfect results, free forever.</p>
               <button
                 class="rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-black transition hover:bg-brand-400"
                 @click="scrollToTool"
@@ -568,18 +689,6 @@ function scrollToTool() {
     </section>
 
     <!-- Footer -->
-    <footer class="border-t border-white/5 py-8">
-      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
-        <div class="flex items-center gap-2">
-          <div class="flex h-6 w-6 items-center justify-center rounded bg-brand-500/20">
-            <svg class="h-4 w-4 text-brand-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-            </svg>
-          </div>
-          <span class="text-sm font-semibold">Watermark Remover</span>
-        </div>
-        <p class="text-xs text-gray-600">All processing happens in your browser. No files are uploaded to any server.</p>
-      </div>
-    </footer>
+    <SiteFooter />
   </div>
 </template>

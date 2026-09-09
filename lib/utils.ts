@@ -62,11 +62,12 @@ export function formatDuration(ms: number): string {
 
 /**
  * Check if the browser supports the required video APIs.
+ * SSR-safe: returns a neutral result when called outside the browser.
  *
  * @returns Object with `supported` flag and optional `reason` string.
  */
 export function checkVideoSupport(): { supported: boolean; reason?: string } {
-  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
+  if (typeof window === 'undefined' || typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
     return {
       supported: false,
       reason: 'WebCodecs API is not supported in this browser. Use Chrome, Edge, or Brave 94+.',
