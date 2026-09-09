@@ -9,7 +9,7 @@ useSeoMeta({
     'Print-on-demand marketplaces are increasingly strict about AI-generated content with the visible Gemini watermark. Here is how to clean up your images, what to disclose, and which platforms reject AI art outright.',
   ogTitle: 'Gemini Watermark Remover for Print on Demand',
   ogDescription: 'Clean Gemini art for POD marketplaces without tripping platform rules.',
-  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-print-on-demand.svg`,
+  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-print-on-demand.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-07-12T08:00:00Z',

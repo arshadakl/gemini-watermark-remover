@@ -9,7 +9,7 @@ useSeoMeta({
     'Remove the diamond watermark from Nano Banana and Gemini images. Reverse alpha-blend cleanup, no upload, no signup, supports PNG, JPG, WEBP. Free forever.',
   ogTitle: 'Nano Banana Watermark Remover — Free',
   ogDescription: "Strip the Gemini sparkle from Nano Banana outputs in seconds. 100% in your browser.",
-  ogImage: `${siteUrl}/og/nano-banana-watermark-remover.svg`,
+  ogImage: `${siteUrl}/og/nano-banana-watermark-remover.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

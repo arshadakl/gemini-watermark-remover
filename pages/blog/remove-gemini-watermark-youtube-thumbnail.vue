@@ -9,7 +9,7 @@ useSeoMeta({
     'How to use Gemini-generated images as YouTube thumbnails after removing the visible watermark. Resize, follow the safe-zone, and ship a thumbnail that does not look like an AI export.',
   ogTitle: 'Gemini Images for YouTube Thumbnails',
   ogDescription: 'Clean Gemini art for YouTube thumbnails without losing quality.',
-  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-youtube-thumbnail.svg`,
+  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-youtube-thumbnail.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-07-22T08:00:00Z',

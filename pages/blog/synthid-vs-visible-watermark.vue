@@ -9,7 +9,7 @@ useSeoMeta({
     'A Gemini image carries three provenance layers: the visible sparkle, the invisible SynthID watermark, and C2PA metadata. Here is what each does and which you can actually remove.',
   ogTitle: 'SynthID vs the Visible Watermark',
   ogDescription: 'Three provenance layers on a Gemini image. Which ones you can remove.',
-  ogImage: `${siteUrl}/og/blog/synthid-vs-visible-watermark.svg`,
+  ogImage: `${siteUrl}/og/blog/synthid-vs-visible-watermark.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-08-10T08:00:00Z',

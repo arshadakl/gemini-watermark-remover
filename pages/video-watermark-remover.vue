@@ -9,7 +9,7 @@ useSeoMeta({
     'Remove the Gemini, Veo, Imagen, and Google Flow sparkle watermark from MP4 videos frame by frame. 100% browser-based, audio preserved, supports 720p and 1080p. Free.',
   ogTitle: 'Gemini Video Watermark Remover — Veo & Google Flow',
   ogDescription: 'Strip the Gemini sparkle from every frame of your video. Free, browser-based, audio preserved.',
-  ogImage: `${siteUrl}/og/video-watermark-remover.svg`,
+  ogImage: `${siteUrl}/og/video-watermark-remover.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

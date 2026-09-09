@@ -9,7 +9,7 @@ useSeoMeta({
     'The real reasons behind the diamond watermark on every Gemini image, the invisible SynthID layer that sits underneath, and what you can do about both.',
   ogTitle: 'Why Google Watermarks Gemini Images',
   ogDescription: 'The real reasons behind the sparkle logo, and what to do about it.',
-  ogImage: `${siteUrl}/og/blog/why-google-watermarks-gemini-images.svg`,
+  ogImage: `${siteUrl}/og/blog/why-google-watermarks-gemini-images.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-08-05T08:00:00Z',

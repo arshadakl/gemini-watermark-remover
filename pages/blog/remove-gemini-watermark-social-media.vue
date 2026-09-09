@@ -9,7 +9,7 @@ useSeoMeta({
     'How to clean up Gemini images for short-form social media posts without tripping platform AI-content rules. A workflow guide for creators.',
   ogTitle: 'Gemini Watermark Remover for Social Media',
   ogDescription: 'Strip the sparkle before posting on Instagram, TikTok, or X.',
-  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-social-media.svg`,
+  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-social-media.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-07-18T08:00:00Z',

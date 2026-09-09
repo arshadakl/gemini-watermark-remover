@@ -9,7 +9,7 @@ useSeoMeta({
     'Strip the Gemini and Veo sparkle watermark from Google Flow video exports. Frame-by-frame reverse alpha-blend, audio preserved, 100% in your browser.',
   ogTitle: 'Google Flow Watermark Remover — Free',
   ogDescription: 'Clean the Gemini/Veo sparkle from every Flow export. Free, browser-based, no upload.',
-  ogImage: `${siteUrl}/og/google-flow-watermark-remover.svg`,
+  ogImage: `${siteUrl}/og/google-flow-watermark-remover.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

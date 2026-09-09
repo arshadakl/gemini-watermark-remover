@@ -9,7 +9,7 @@ useSeoMeta({
     "Watermark Remover's privacy policy: what we collect (nothing), how processing works (entirely in your browser), and what we never do.",
   ogTitle: 'Privacy Policy — Watermark Remover',
   ogDescription: 'We collect nothing. All processing happens in your browser.',
-  ogImage: `${siteUrl}/og/privacy-policy.svg`,
+  ogImage: `${siteUrl}/og/privacy-policy.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary',
   robots: 'index, follow',

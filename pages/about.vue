@@ -9,7 +9,7 @@ useSeoMeta({
     'Watermark Remover is a free, browser-based tool for stripping the Gemini, Veo, Imagen, Nano Banana, and Google Flow sparkle from AI-generated images and videos. Built by Arshad.',
   ogTitle: 'About Watermark Remover',
   ogDescription: 'A free, browser-based Gemini watermark remover. Built by Arshad. No upload, no signup.',
-  ogImage: `${siteUrl}/og/about.svg`,
+  ogImage: `${siteUrl}/og/about.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

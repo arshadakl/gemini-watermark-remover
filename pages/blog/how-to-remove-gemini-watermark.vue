@@ -9,7 +9,7 @@ useSeoMeta({
     'Step-by-step guide to removing the Gemini, Imagen, Nano Banana sparkle watermark from any image using the free browser tool. No Photoshop, no upload, no signup.',
   ogTitle: 'How to Remove the Gemini Watermark in 10 Seconds',
   ogDescription: 'Step-by-step guide with screenshots. Free, browser-based, pixel-perfect.',
-  ogImage: `${siteUrl}/og/blog/how-to-remove-gemini-watermark.svg`,
+  ogImage: `${siteUrl}/og/blog/how-to-remove-gemini-watermark.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-08-22T08:00:00Z',

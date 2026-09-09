@@ -18,7 +18,7 @@ useSeoMeta({
   description: 'Get in touch with the Watermark Remover team for bug reports, feature requests, or general questions.',
   ogTitle: 'Contact — Watermark Remover',
   ogDescription: 'Reach the Watermark Remover team.',
-  ogImage: `${siteUrl}/og/contact.svg`,
+  ogImage: `${siteUrl}/og/contact.png`,
   ogUrl: pageUrl,
   twitterCard: 'summary',
   robots: 'index, follow',

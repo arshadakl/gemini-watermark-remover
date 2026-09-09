@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 
 const files = [
   'pages/index.vue',
@@ -28,33 +27,19 @@ const files = [
   'pages/blog/reverse-alpha-blending-explained.vue',
 ];
 
-function slugFor(file) {
-  const withoutExt = file.replace(/^pages\//, '').replace(/\.vue$/, '');
-  if (withoutExt === 'index') return 'index';
-  return withoutExt;
-}
+const oldPattern = /ogImage:\s*`\$\{siteUrl\}\/og\/([^`]+)\.svg`/;
 
 let updated = 0;
-let skipped = 0;
 for (const file of files) {
-  const slug = slugFor(file);
-  const newPath = '/og/' + slug + '.svg';
   let content = fs.readFileSync(file, 'utf8');
-
-  // Replace the ogImage line
-  const oldPattern = /ogImage:\s*`\$\{siteUrl\}\/og-image\.png`/;
-  const newLine = 'ogImage: `' + '${siteUrl}' + newPath + '`';
-
   if (!oldPattern.test(content)) {
     console.log('SKIP ' + file + ' (pattern not found)');
-    skipped++;
     continue;
   }
-
-  content = content.replace(oldPattern, newLine);
+  content = content.replace(oldPattern, (match, slug) => `ogImage: \`${'${siteUrl}'}/og/${slug}.png\``);
   fs.writeFileSync(file, content);
-  console.log('OK   ' + file + ' -> ' + newPath);
+  console.log('OK   ' + file);
   updated++;
 }
 
-console.log('\nUpdated ' + updated + '/' + files.length + ' files' + (skipped ? ' (skipped ' + skipped + ')' : ''));
+console.log('\nUpdated ' + updated + '/' + files.length + ' files');
