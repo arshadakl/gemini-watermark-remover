@@ -41,14 +41,14 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'en' },
       titleTemplate: '%s | Watermark Remover',
-      title: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+      title: 'Free Gemini Watermark Remover — AI Image & Video',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         {
           name: 'description',
           content:
-            'Free Gemini watermark remover — strip the Gemini, Veo, Imagen, Nano Banana and Google Flow sparkle from images and videos. 100% in your browser. No uploads. No signup.',
+            '100% free Gemini watermark remover — strip the Gemini, Veo, Imagen, Nano Banana & Google Flow sparkle from images and videos. No upload, no signup, no limits.',
         },
         {
           name: 'keywords',
@@ -66,12 +66,12 @@ export default defineNuxtConfig({
         { property: 'og:locale', content: 'en_US' },
         {
           property: 'og:title',
-          content: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+          content: 'Free Gemini Watermark Remover — AI Image & Video',
         },
         {
           property: 'og:description',
           content:
-            'Strip the Gemini sparkle from images and videos in seconds. 100% browser-based, no uploads, supports Veo, Imagen, Nano Banana and Google Flow.',
+            '100% free — strip the Gemini, Veo, Imagen, Nano Banana & Google Flow sparkle from AI images and videos. No upload, no signup, no limits.',
         },
         { property: 'og:image', content: 'https://watermark-remover.arshadakl.in/og-image.png' },
         { property: 'og:image:width', content: '1200' },
@@ -79,10 +79,10 @@ export default defineNuxtConfig({
         { property: 'og:image:alt', content: 'Gemini Watermark Remover' },
         { property: 'og:url', content: 'https://watermark-remover.arshadakl.in/' },
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: 'Gemini Watermark Remover — Free AI Image & Video Cleaner' },
+        { name: 'twitter:title', content: 'Free Gemini Watermark Remover — AI Image & Video' },
         {
           name: 'twitter:description',
-          content: 'Strip the Gemini sparkle from images and videos. Free, private, 100% in your browser.',
+          content: '100% free Gemini watermark remover — no upload, no signup, no limits. Works on Gemini, Veo, Imagen, Nano Banana & Google Flow.',
         },
         { name: 'twitter:image', content: 'https://watermark-remover.arshadakl.in/og-image.png' },
         { name: 'twitter:image:alt', content: 'Gemini Watermark Remover' },

@@ -11,19 +11,19 @@ const route = useRoute()
 const siteUrl = 'https://watermark-remover.arshadakl.in'
 
 useSeoMeta({
-  title: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+  title: 'Free Gemini Watermark Remover — AI Image & Video',
   description:
-    'Free Gemini watermark remover — strip the Gemini, Veo, Imagen, Nano Banana and Google Flow sparkle from images and videos. 100% in your browser. No uploads. No signup.',
-  ogTitle: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
+    '100% free Gemini watermark remover — strip the Gemini, Veo, Imagen, Nano Banana & Google Flow sparkle from images and videos. No upload, no signup, no limits.',
+  ogTitle: 'Free Gemini Watermark Remover — AI Image & Video',
   ogDescription:
-    'Strip the Gemini sparkle from images and videos in seconds. 100% browser-based, no uploads.',
+    '100% free — strip the Gemini, Veo, Imagen, Nano Banana & Google Flow sparkle from AI images and videos. No upload, no signup, no limits.',
   ogImage: `${siteUrl}/og-image.png`,
   ogUrl: siteUrl + route.path,
   ogType: 'website',
   ogSiteName: 'Watermark Remover',
   twitterCard: 'summary_large_image',
-  twitterTitle: 'Gemini Watermark Remover — Free AI Image & Video Cleaner',
-  twitterDescription: 'Strip the Gemini sparkle from images and videos. Free, private, 100% in your browser.',
+  twitterTitle: 'Free Gemini Watermark Remover — AI Image & Video',
+  twitterDescription: '100% free Gemini watermark remover — no upload, no signup, no limits. Works on Gemini, Veo, Imagen, Nano Banana & Google Flow.',
   twitterImage: `${siteUrl}/og-image.png`,
   robots: 'index, follow, max-image-preview:large',
 })
