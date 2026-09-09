@@ -4,8 +4,8 @@
  */
 
 import type { ProcessingMode } from '~/lib/types'
-import { checkVideoSupport, formatFileSize } from '~/lib/utils'
-import { SUPPORTED_VIDEO_DIMS } from '~/lib/constants'
+import { checkVideoSupport, formatFileSize, canvasToBlob } from '~/lib/utils'
+import { saveResult, loadResult, clearResult } from '~/composables/useIndexedDb'
 
 const route = useRoute()
 const siteUrl = 'https://watermark-remover.arshadakl.in'
@@ -68,6 +68,8 @@ const uploadBounce = ref(false)
 const imageFile = ref<File | null>(null)
 const imagePreviewUrl = ref<string | null>(null)
 const cleanedImageUrl = ref<string | null>(null)
+const cleanedImageMime = ref<string | null>(null)
+const imageNotice = ref<string | null>(null)
 const {
   isProcessing: imageProcessing,
   result: imageResult,
@@ -95,8 +97,17 @@ const isBusy = computed(() => imageProcessing.value || videoProcessing.value)
 const isDone = computed(() => (mode.value === 'image' && !!cleanedImageUrl.value) || (mode.value === 'video' && !!videoResult.value))
 const currentError = computed(() => imageError.value || videoError.value)
 const videoSupport = ref({ supported: false, reason: '' as string | undefined })
-onMounted(() => {
-  videoSupport.value = checkVideoSupport()
+
+// Correct the download filename to match the actual output format (a GIF
+// source is re-encoded to PNG, for example).
+const imageDownloadName = computed(() => {
+  if (!imageFile.value) return ''
+  const base = imageFile.value.name.replace(/\.[^.]+$/, '')
+  const ext =
+    cleanedImageMime.value === 'image/jpeg' ? 'jpg'
+    : cleanedImageMime.value === 'image/webp' ? 'webp'
+    : 'png'
+  return `cleaned-${base}.${ext}`
 })
 
 // ── FAQ data ──────────────────────────────────────────────────────────────────
@@ -132,13 +143,16 @@ function setFaqRef(el: any, index: number) {
 // ── Image handling ────────────────────────────────────────────────────────────
 function onImageSelect(file: File) {
   resetImage()
-  cleanedImageUrl.value = null
+  releaseImageResult()
+  imageNotice.value = null
   imageFile.value = file
   imagePreviewUrl.value = URL.createObjectURL(file)
+  clearResult('image')
 }
 
 async function handleImageProcess() {
-  if (!imageFile.value) return
+  const file = imageFile.value
+  if (!file) return
   const img = new Image()
   img.src = imagePreviewUrl.value!
   await new Promise<void>((resolve, reject) => {
@@ -148,45 +162,89 @@ async function handleImageProcess() {
 
   const res = await processImage(img)
   if (res?.removed) {
+    imageNotice.value = null
     const canvas = document.createElement('canvas')
     canvas.width = res.imageData.width
     canvas.height = res.imageData.height
     const ctx = canvas.getContext('2d')!
     ctx.putImageData(res.imageData, 0, 0)
-    cleanedImageUrl.value = canvas.toDataURL('image/png')
+    const blob = await canvasToBlob(canvas, file.type)
+    releaseImageResult()
+    cleanedImageUrl.value = URL.createObjectURL(blob)
+    cleanedImageMime.value = blob.type
+    await saveResult({
+      mode: 'image',
+      inputFile: file,
+      resultBlob: blob,
+      createdAt: Date.now(),
+    })
+  } else if (res && !res.removed) {
+    imageNotice.value = 'No Gemini watermark was detected in this image, so it was left unchanged.'
   }
+}
+
+function releaseImageResult() {
+  if (cleanedImageUrl.value) {
+    URL.revokeObjectURL(cleanedImageUrl.value)
+    cleanedImageUrl.value = null
+  }
+  cleanedImageMime.value = null
 }
 
 function resetImageAll() {
   resetImage()
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+    imagePreviewUrl.value = null
+  }
+  releaseImageResult()
+  imageNotice.value = null
   imageFile.value = null
-  imagePreviewUrl.value = null
-  cleanedImageUrl.value = null
+  clearResult('image')
 }
 
 // ── Video handling ────────────────────────────────────────────────────────────
 function onVideoSelect(file: File) {
   resetVideo()
-  videoResult.value && URL.revokeObjectURL(videoDownloadUrl.value!)
-  videoDownloadUrl.value = null
+  releaseVideoResult()
   videoFile.value = file
   videoPreviewUrl.value = URL.createObjectURL(file)
+  clearResult('video')
 }
 
 async function handleVideoProcess() {
-  if (!videoFile.value) return
-  const ab = await videoFile.value.arrayBuffer()
+  const file = videoFile.value
+  if (!file) return
+  const ab = await file.arrayBuffer()
   const blob = await processVideo(ab)
   if (blob) {
+    releaseVideoResult()
     videoDownloadUrl.value = URL.createObjectURL(blob)
+    await saveResult({
+      mode: 'video',
+      inputFile: file,
+      resultBlob: blob,
+      createdAt: Date.now(),
+    })
+  }
+}
+
+function releaseVideoResult() {
+  if (videoDownloadUrl.value) {
+    URL.revokeObjectURL(videoDownloadUrl.value)
+    videoDownloadUrl.value = null
   }
 }
 
 function resetVideoAll() {
   resetVideo()
+  if (videoPreviewUrl.value) {
+    URL.revokeObjectURL(videoPreviewUrl.value)
+    videoPreviewUrl.value = null
+  }
+  releaseVideoResult()
   videoFile.value = null
-  videoPreviewUrl.value = null
-  videoDownloadUrl.value = null
+  clearResult('video')
 }
 
 function resetAll() {
@@ -197,6 +255,43 @@ function resetAll() {
 function switchMode(m: ProcessingMode) {
   mode.value = m
 }
+
+// ── Persistence restore + cleanup ─────────────────────────────────────────────
+async function restorePersistedResults() {
+  let latest: { mode: ProcessingMode; createdAt: number } | null = null
+  for (const m of ['image', 'video'] as ProcessingMode[]) {
+    const entry = await loadResult(m)
+    if (!entry) continue
+    if (m === 'image') {
+      imageFile.value = entry.inputFile
+      imagePreviewUrl.value = URL.createObjectURL(entry.inputFile)
+      cleanedImageUrl.value = URL.createObjectURL(entry.resultBlob)
+      cleanedImageMime.value = entry.resultBlob.type
+      imageResult.value = { removed: true, imageData: null as any, pixelsModified: 0, elapsedMs: 0 }
+    } else {
+      videoFile.value = entry.inputFile
+      videoPreviewUrl.value = URL.createObjectURL(entry.inputFile)
+      videoResult.value = entry.resultBlob
+      videoDownloadUrl.value = URL.createObjectURL(entry.resultBlob)
+    }
+    if (!latest || entry.createdAt > latest.createdAt) {
+      latest = { mode: m, createdAt: entry.createdAt }
+    }
+  }
+  if (latest) mode.value = latest.mode
+}
+
+onMounted(async () => {
+  videoSupport.value = checkVideoSupport()
+  await restorePersistedResults()
+})
+
+onBeforeUnmount(() => {
+  releaseImageResult()
+  releaseVideoResult()
+  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
+  if (videoPreviewUrl.value) URL.revokeObjectURL(videoPreviewUrl.value)
+})
 
 function scrollToTool() {
   uploadBounce.value = true
@@ -349,24 +444,40 @@ const latestPosts = [
                 <p class="text-sm text-gray-400">Review your {{ mode }} and remove the watermark with one click.</p>
               </div>
 
-              <!-- Preview area -->
+              <!-- Preview area — original and cleaned shown separately -->
               <div class="px-8 pt-6">
-                <div class="relative overflow-hidden rounded-2xl border border-white/5 bg-black/40">
-                  <!-- Image preview -->
-                  <template v-if="mode === 'image' && imageFile">
-                    <img :src="imagePreviewUrl!" class="w-full object-contain" style="max-height: 320px;" alt="Gemini image with watermark preview" />
-                    <!-- Cleaned overlay -->
-                    <div v-if="cleanedImageUrl" class="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <div class="text-center">
-                        <p class="mb-2 text-xs font-semibold text-brand-400 uppercase tracking-wider">Cleaned</p>
-                        <img :src="cleanedImageUrl" class="mx-auto max-h-[260px] rounded-xl object-contain" alt="Gemini image with watermark removed" />
-                      </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <!-- Original -->
+                  <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                    <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
+                      <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
                     </div>
-                  </template>
-                  <!-- Video preview -->
-                  <template v-if="mode === 'video' && videoFile">
-                    <video :src="videoPreviewUrl!" controls class="w-full" style="max-height: 320px;" aria-label="Gemini video with watermark preview" />
-                  </template>
+                    <template v-if="mode === 'image'">
+                      <img v-if="imagePreviewUrl" :src="imagePreviewUrl" class="w-full object-contain" style="max-height: 320px;" alt="Original image with watermark" />
+                    </template>
+                    <template v-else>
+                      <video v-if="videoPreviewUrl" :src="videoPreviewUrl" controls class="w-full" style="max-height: 320px;" aria-label="Original video with watermark" />
+                    </template>
+                  </div>
+
+                  <!-- Result -->
+                  <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                    <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
+                      <span class="text-xs font-semibold uppercase tracking-wider text-brand-400">Cleaned</span>
+                    </div>
+                    <template v-if="mode === 'image'">
+                      <img v-if="cleanedImageUrl" :src="cleanedImageUrl" class="w-full object-contain" style="max-height: 320px;" alt="Image with watermark removed" />
+                      <div v-else class="flex h-[200px] items-center justify-center px-6 text-center text-xs text-gray-500">
+                        Click "Remove Watermark" to see the cleaned result
+                      </div>
+                    </template>
+                    <template v-else>
+                      <video v-if="videoDownloadUrl" :src="videoDownloadUrl" controls class="w-full" style="max-height: 320px;" aria-label="Video with watermark removed" />
+                      <div v-else class="flex h-[200px] items-center justify-center px-6 text-center text-xs text-gray-500">
+                        Click "Remove Watermark" to see the cleaned result
+                      </div>
+                    </template>
+                  </div>
                 </div>
               </div>
 
@@ -439,7 +550,7 @@ const latestPosts = [
                   <a
                     v-if="(mode === 'image' && cleanedImageUrl) || (mode === 'video' && videoDownloadUrl)"
                     :href="mode === 'image' ? cleanedImageUrl! : videoDownloadUrl!"
-                    :download="mode === 'image' ? `cleaned-${imageFile!.name}` : `cleaned-${videoFile!.name}`"
+                    :download="mode === 'image' ? imageDownloadName : `cleaned-${videoFile!.name}`"
                     class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5"
                   >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -506,6 +617,10 @@ const latestPosts = [
           <!-- Error -->
           <div v-if="currentError" class="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-center text-sm text-red-400">
             {{ currentError }}
+          </div>
+          <!-- Notice (non-fatal, e.g. watermark not detected) -->
+          <div v-if="imageNotice && !currentError" class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-center text-sm text-amber-400">
+            {{ imageNotice }}
           </div>
         </div>
       </div>
