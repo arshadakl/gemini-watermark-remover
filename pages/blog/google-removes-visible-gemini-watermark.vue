@@ -9,7 +9,7 @@ useSeoMeta({
     'On August 14, 2026 Google added a Media Watermark toggle inside Gemini that lets users turn off the visible sparkle on new generations. Here is what changed, what stayed, and how to clean old files.',
   ogTitle: "Google Just Made Gemini Watermarks Optional — August 2026 Update",
   ogDescription: "Gemini now lets you turn off the visible sparkle. Here's what it means for you.",
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/google-removes-visible-gemini-watermark.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-09-01T08:00:00Z',

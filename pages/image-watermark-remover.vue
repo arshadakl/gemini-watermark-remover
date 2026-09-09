@@ -9,7 +9,7 @@ useSeoMeta({
     'Free online tool to remove the Gemini, Imagen, and Nano Banana sparkle watermark from images. Reverse alpha blending, no upload, no signup, supports PNG, JPG, WEBP, GIF.',
   ogTitle: 'Gemini Image Watermark Remover — Free & Private',
   ogDescription: 'Strip the Gemini sparkle from any image in seconds. 100% browser-based, pixel-perfect.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/image-watermark-remover.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

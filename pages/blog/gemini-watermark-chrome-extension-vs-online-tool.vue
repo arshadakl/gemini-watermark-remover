@@ -9,7 +9,7 @@ useSeoMeta({
     'A practical breakdown of the two main ways to strip the Gemini sparkle: a browser extension that intercepts downloads vs an online tool you upload to. Pros, cons, and which fits your workflow.',
   ogTitle: 'Chrome Extension vs Online Tool for Gemini Watermark Removal',
   ogDescription: 'Two workflows, one job. Which one fits yours?',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/gemini-watermark-chrome-extension-vs-online-tool.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-07-28T08:00:00Z',

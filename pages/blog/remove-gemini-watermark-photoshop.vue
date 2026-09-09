@@ -9,7 +9,7 @@ useSeoMeta({
     'Step-by-step Photoshop tutorial using the Clone Stamp and Content-Aware Fill, plus a one-click alternative for when you do not want to fire up the desktop app.',
   ogTitle: 'Remove the Gemini Watermark in Photoshop',
   ogDescription: 'Step-by-step Photoshop tutorial plus a faster browser alternative.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-photoshop.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-07-05T08:00:00Z',

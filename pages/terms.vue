@@ -9,7 +9,7 @@ useSeoMeta({
     'Terms of Service for Watermark Remover: permitted use, prohibited use, disclaimers, and limitations of liability.',
   ogTitle: 'Terms of Service — Watermark Remover',
   ogDescription: 'The rules for using this tool.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/terms.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary',
   robots: 'index, follow',

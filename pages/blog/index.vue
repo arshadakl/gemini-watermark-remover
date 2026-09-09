@@ -9,7 +9,7 @@ useSeoMeta({
     'Guides, news, and technical deep-dives on removing the Gemini, Veo, Imagen, Nano Banana, and Google Flow sparkle watermark. Reverse alpha blending, model news, and workflow tips.',
   ogTitle: 'Watermark Remover Blog',
   ogDescription: 'Guides, news, and technical deep-dives on Gemini watermarks.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/index.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

@@ -9,7 +9,7 @@ useSeoMeta({
     'Remove the Veo video watermark from every frame of your MP4. Free browser-based tool, audio preserved, supports 720p and 1080p. Works on Veo 2 and Veo 3.',
   ogTitle: 'Veo Watermark Remover — Free & Frame-Perfect',
   ogDescription: 'Strip the Veo sparkle from every frame. 100% in your browser, audio preserved.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/veo-watermark-remover.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })

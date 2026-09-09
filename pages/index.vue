@@ -17,7 +17,7 @@ useSeoMeta({
   ogTitle: 'Free Gemini Watermark Remover — AI Image & Video',
   ogDescription:
     '100% free — strip the Gemini, Veo, Imagen, Nano Banana & Google Flow sparkle from AI images and videos. No upload, no signup, no limits.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/index.svg`,
   ogUrl: siteUrl + route.path,
   ogType: 'website',
   ogSiteName: 'Watermark Remover',

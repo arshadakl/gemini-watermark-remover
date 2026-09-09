@@ -9,7 +9,7 @@ useSeoMeta({
     'A precise technical explanation of how reverse alpha blending removes the Gemini sparkle losslessly. Why it beats AI inpainting, when it fails, and how the alpha maps are calibrated.',
   ogTitle: 'Reverse Alpha Blending Explained',
   ogDescription: 'The exact math behind removing the Gemini watermark, pixel by pixel.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/reverse-alpha-blending-explained.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-08-15T08:00:00Z',

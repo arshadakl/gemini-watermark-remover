@@ -9,7 +9,7 @@ useSeoMeta({
     'Step-by-step GIMP tutorial for removing the Gemini sparkle from any image. Use the Clone Tool, Heal Selection, and Resynthesizer plugin — completely free.',
   ogTitle: 'Remove the Gemini Watermark in GIMP',
   ogDescription: 'A completely free desktop workflow for cleaning Gemini images.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/remove-gemini-watermark-gimp.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-06-30T08:00:00Z',

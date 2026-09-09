@@ -9,7 +9,7 @@ useSeoMeta({
     'A practical comparison of watermarking practices across Gemini, ChatGPT (DALL-E), and Midjourney, including how to strip the visible watermark when one is present.',
   ogTitle: 'Gemini vs ChatGPT vs Midjourney: Watermarks Compared',
   ogDescription: 'Which generator ships clean output and which stamps every file.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/blog/gemini-vs-chatgpt-vs-midjourney-watermark.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
   articlePublishedTime: '2026-08-01T08:00:00Z',

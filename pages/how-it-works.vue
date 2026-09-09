@@ -9,7 +9,7 @@ useSeoMeta({
     'A technical walkthrough of how the Gemini watermark is applied and how reverse alpha blending removes it losslessly. No AI inpainting, no server, all in the browser.',
   ogTitle: 'How Gemini Watermark Removal Works',
   ogDescription: 'Reverse alpha blending explained: the exact math behind removing the Gemini sparkle.',
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage: `${siteUrl}/og/how-it-works.svg`,
   ogUrl: pageUrl,
   twitterCard: 'summary_large_image',
 })
