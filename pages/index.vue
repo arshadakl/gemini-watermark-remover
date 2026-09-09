@@ -96,6 +96,7 @@ const videoDownloadUrl = ref<string | null>(null)
 const isBusy = computed(() => imageProcessing.value || videoProcessing.value)
 const isDone = computed(() => (mode.value === 'image' && !!cleanedImageUrl.value) || (mode.value === 'video' && !!videoResult.value))
 const currentError = computed(() => imageError.value || videoError.value)
+const currentFile = computed(() => mode.value === 'image' ? imageFile.value : videoFile.value)
 const videoSupport = ref({ supported: false, reason: '' as string | undefined })
 
 // Correct the download filename to match the actual output format (a GIF
@@ -401,7 +402,7 @@ const latestPosts = [
           </div>
 
           <!-- Upload Area (no file selected) -->
-          <template v-if="!imageFile && !videoFile">
+          <template v-if="mode === 'image' ? !imageFile : !videoFile">
             <div
               v-if="mode === 'image'"
               class="cursor-pointer rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center transition-all hover:border-brand-500/30 hover:bg-brand-500/5"
@@ -444,39 +445,44 @@ const latestPosts = [
                 <p class="text-sm text-gray-400">Review your {{ mode }} and remove the watermark with one click.</p>
               </div>
 
-              <!-- Preview area — original and cleaned shown separately -->
+              <!-- Preview area -->
               <div class="px-8 pt-6">
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <!-- Original -->
+                <ImageComparisonSlider
+                  v-if="mode === 'image' && imagePreviewUrl && cleanedImageUrl"
+                  :original-src="imagePreviewUrl"
+                  :cleaned-src="cleanedImageUrl"
+                  original-alt="Original image with Gemini watermark"
+                  cleaned-alt="Image after Gemini watermark removal"
+                />
+
+                <div v-else-if="mode === 'image'" class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                  <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
+                  </div>
+                  <img
+                    v-if="imagePreviewUrl"
+                    :src="imagePreviewUrl"
+                    class="max-h-[500px] w-full object-contain"
+                    alt="Original image with watermark"
+                    draggable="false"
+                  />
+                </div>
+
+                <div v-else class="grid gap-4 sm:grid-cols-2">
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
                     </div>
-                    <template v-if="mode === 'image'">
-                      <img v-if="imagePreviewUrl" :src="imagePreviewUrl" class="w-full object-contain" style="max-height: 320px;" alt="Original image with watermark" />
-                    </template>
-                    <template v-else>
-                      <video v-if="videoPreviewUrl" :src="videoPreviewUrl" controls class="w-full" style="max-height: 320px;" aria-label="Original video with watermark" />
-                    </template>
+                    <video v-if="videoPreviewUrl" :src="videoPreviewUrl" controls class="max-h-80 w-full" aria-label="Original video with watermark" />
                   </div>
-
-                  <!-- Result -->
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-brand-400">Cleaned</span>
                     </div>
-                    <template v-if="mode === 'image'">
-                      <img v-if="cleanedImageUrl" :src="cleanedImageUrl" class="w-full object-contain" style="max-height: 320px;" alt="Image with watermark removed" />
-                      <div v-else class="flex h-[200px] items-center justify-center px-6 text-center text-xs text-gray-500">
-                        Click "Remove Watermark" to see the cleaned result
-                      </div>
-                    </template>
-                    <template v-else>
-                      <video v-if="videoDownloadUrl" :src="videoDownloadUrl" controls class="w-full" style="max-height: 320px;" aria-label="Video with watermark removed" />
-                      <div v-else class="flex h-[200px] items-center justify-center px-6 text-center text-xs text-gray-500">
-                        Click "Remove Watermark" to see the cleaned result
-                      </div>
-                    </template>
+                    <video v-if="videoDownloadUrl" :src="videoDownloadUrl" controls class="max-h-80 w-full" aria-label="Video with watermark removed" />
+                    <div v-else class="flex h-[200px] items-center justify-center px-6 text-center text-xs text-gray-500">
+                      Click "Remove Watermark" to see the cleaned result
+                    </div>
                   </div>
                 </div>
               </div>
@@ -494,9 +500,9 @@ const latestPosts = [
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="truncate text-sm font-medium text-white">{{ (imageFile || videoFile)!.name }}</p>
+                  <p class="truncate text-sm font-medium text-white">{{ currentFile!.name }}</p>
                   <p class="text-xs text-gray-500">
-                    {{ formatFileSize((imageFile || videoFile)!.size) }}
+                    {{ formatFileSize(currentFile!.size) }}
                   </p>
                 </div>
                 <div v-if="imageResult?.removed || videoResult" class="flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1">
