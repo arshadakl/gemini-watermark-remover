@@ -1,37 +1,31 @@
 /**
- * Dynamic OG image generator — PNG output for WhatsApp / Twitter / universal use.
+ * Generate per-page Open Graph PNG images at build time.
  *
- * Route: GET /og/<anything>.png
+ * Runs before `nuxt build` (via package.json prebuild hook) and writes
+ * one PNG per page to public/og/<slug>.png. The static files are then
+ * copied to .output/public by Nuxt's build pipeline.
  *
- * Catch-all route that returns a 1200x630 PNG Open Graph image with the
- * page-specific title and subtitle baked in. Slugs can include slashes
- * (e.g. 'blog/reverse-alpha-blending-explained'), which lets one route
- * serve every page's OG image.
- *
- * Why PNG and not SVG:
- *   SVG is supported by Facebook, LinkedIn, Discord, Slack, etc.
- *   WhatsApp and Twitter/X REQUIRE PNG/JPG — their crawlers do not
- *   render SVG previews. Serving PNG makes the link preview work
- *   everywhere.
- *
- * Build-time: every /og/*.png URL is added to nitro.prerender.routes, so
- * `nuxt generate` hits this route once per slug, saves the PNG output as
- * a static file in .output/public/og/, and Cloudflare Pages serves it
- * as a plain asset. No runtime, no Functions, no monthly cost.
+ * Why a script and not a Nitro server route:
+ *   @resvg/resvg-js ships a native .node binary that the Cloudflare
+ *   Pages worker bundler cannot resolve. Nitro's prerender step does
+ *   run the route successfully (all PNGs are generated), but the
+ *   subsequent worker bundle step fails because the native binding is
+ *   not available in the Workers runtime. Moving generation to a Node
+ *   script sidesteps the bundle step entirely.
  */
 
 import { Resvg } from '@resvg/resvg-js'
+import { writeFileSync, mkdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 
-interface PageMeta {
-  title: string
-  subtitle: string
-  badge?: string
-}
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const OUT_DIR = resolve(__dirname, '..', 'public', 'og')
 
-const PAGES: Record<string, PageMeta> = {
+const PAGES = {
   'index': {
     title: 'Free Gemini Watermark Remover',
-    subtitle: 'AI Image & Video · 100% in your browser',
+    subtitle: 'AI Image & Video \u00B7 100% in your browser',
     badge: 'watermark-remover.arshadakl.in',
   },
   'image-watermark-remover': {
@@ -66,7 +60,7 @@ const PAGES: Record<string, PageMeta> = {
   },
   'about': {
     title: 'About Watermark Remover',
-    subtitle: 'Built by Arshad · arshadakl.in',
+    subtitle: 'Built by Arshad \u00B7 arshadakl.in',
     badge: 'watermark-remover.arshadakl.in',
   },
   'contact': {
@@ -95,8 +89,8 @@ const PAGES: Record<string, PageMeta> = {
     badge: 'watermark-remover.arshadakl.in',
   },
   'blog/google-removes-visible-gemini-watermark': {
-    title: "Google Just Made Gemini Watermarks Optional",
-    subtitle: "August 2026 update · what changed, what didn't",
+    title: 'Google Just Made Gemini Watermarks Optional',
+    subtitle: "August 2026 update \u00B7 what changed, what didn't",
     badge: 'watermark-remover.arshadakl.in',
   },
   'blog/how-to-remove-gemini-watermark': {
@@ -131,7 +125,7 @@ const PAGES: Record<string, PageMeta> = {
   },
   'blog/gemini-watermark-chrome-extension-vs-online-tool': {
     title: 'Chrome Extension vs Online Tool',
-    subtitle: 'Two workflows, one job — which fits yours?',
+    subtitle: 'Two workflows, one job \u2014 which fits yours?',
     badge: 'watermark-remover.arshadakl.in',
   },
   'blog/remove-gemini-watermark-youtube-thumbnail': {
@@ -156,7 +150,7 @@ const PAGES: Record<string, PageMeta> = {
   },
 }
 
-function escapeXml(s: string): string {
+function escapeXml(s) {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -165,10 +159,10 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function wrapTitle(title: string, maxChars: number): string[] {
+function wrapTitle(title, maxChars) {
   if (title.length <= maxChars) return [title]
   const words = title.split(' ')
-  const lines: string[] = []
+  const lines = []
   let current = ''
   for (const word of words) {
     if ((current + ' ' + word).trim().length > maxChars) {
@@ -182,13 +176,10 @@ function wrapTitle(title: string, maxChars: number): string[] {
   return lines.slice(0, 3)
 }
 
-function generateSvg(meta: PageMeta): string {
+function generateSvg(meta) {
   const titleLines = wrapTitle(meta.title, 22)
   const lineHeight = 86
   const titleStartY = 340 - ((titleLines.length - 1) * lineHeight) / 2
-
-  // Use generic font-family so resvg falls back to whatever sans-serif
-  // is available on the build host (DejaVu Sans on Linux, Arial on Windows).
   const fontFamily = 'Arial, Helvetica, sans-serif'
 
   const titleSvg = titleLines
@@ -223,7 +214,7 @@ function generateSvg(meta: PageMeta): string {
   <g transform="translate(1140, 60)">
     <rect x="-220" y="0" width="220" height="34" rx="17" fill="#84cc16" fill-opacity="0.12" stroke="#84cc16" stroke-opacity="0.25" stroke-width="1" />
     <circle cx="-200" cy="17" r="3.5" fill="#84cc16" />
-    <text x="-188" y="23" font-family="${fontFamily}" font-size="14" font-weight="600" fill="#84cc16">Free · No upload · No signup</text>
+    <text x="-188" y="23" font-family="${fontFamily}" font-size="14" font-weight="600" fill="#84cc16">Free \u00B7 No upload \u00B7 No signup</text>
   </g>
 
   <g transform="translate(600, 175)" opacity="0.95">
@@ -241,34 +232,24 @@ function generateSvg(meta: PageMeta): string {
 `
 }
 
-export default defineEventHandler((event) => {
-  // Catch-all route + .png.get.ts extension doesn't reliably capture the
-  // multi-segment slug via getRouterParam in h3, so we parse the URL
-  // path directly. Path looks like "/og/<slug>.png" where <slug> may
-  // contain forward slashes for nested pages.
-  const urlPath = event.path || ''
-  let slug = urlPath.replace(/^\/og\//, '').replace(/\.png$/, '').replace(/\/$/, '')
-  if (!slug) slug = 'index'
-
-  const meta = PAGES[slug] || PAGES['index']
-
-  const svg = generateSvg(meta)
-
-  // Render SVG → PNG using resvg (no font files needed, system fallback).
+function renderPng(svg) {
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: 1200 },
     background: '#0a0a0a',
-    font: {
-      loadSystemFonts: true,
-      defaultFontFamily: 'Arial',
-    },
+    font: { loadSystemFonts: true, defaultFontFamily: 'Arial' },
   })
+  return resvg.render().asPng()
+}
 
-  const png = resvg.render().asPng()
+mkdirSync(OUT_DIR, { recursive: true })
 
-  setHeader(event, 'Content-Type', 'image/png')
-  setHeader(event, 'Content-Length', String(png.byteLength))
-  setHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
+let count = 0
+for (const [slug, meta] of Object.entries(PAGES)) {
+  const filePath = resolve(OUT_DIR, `${slug}.png`)
+  mkdirSync(dirname(filePath), { recursive: true })
+  const png = renderPng(generateSvg(meta))
+  writeFileSync(filePath, png)
+  count++
+}
 
-  return png
-})
+console.log(`[og] generated ${count} PNG files in ${OUT_DIR}`)

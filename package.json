@@ -3,11 +3,14 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "og:build": "node scripts/generate-og-images.mjs",
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "prebuild": "npm run og:build",
+    "pregenerate": "npm run og:build"
   },
   "dependencies": {
     "lenis": "^1.3.26",
