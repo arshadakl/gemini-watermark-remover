@@ -33,6 +33,7 @@ export default defineNuxtConfig({
         '/blog/reverse-alpha-blending-explained',
         '/sitemap.xml',
         '/robots.txt',
+        '/llm.txt',
       ],
     },
   },
@@ -92,6 +93,7 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
         { rel: 'manifest', href: '/site.webmanifest' },
         { rel: 'canonical', href: 'https://watermark-remover.arshadakl.in/' },
+        { rel: 'alternate', type: 'text/plain', href: 'https://watermark-remover.arshadakl.in/llm.txt', title: 'LLM-friendly site description' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {

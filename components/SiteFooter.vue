@@ -55,19 +55,23 @@
 
       <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-[11px] text-gray-600 md:flex-row">
         <p>© 2026 Watermark Remover · Not affiliated with Google. All processing happens in your browser.</p>
-        <p>
-          Made with
-          <svg class="mx-0.5 inline-block h-3 w-3 text-brand-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-          </svg>
-          by
-          <a
-            href="https://arshadakl.in"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-gray-400 transition hover:text-brand-400"
-            >Arshad</a
-          >
+        <p class="flex items-center gap-3">
+          <span>
+            Made with
+            <svg class="mx-0.5 inline-block h-3 w-3 text-brand-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+            by
+            <a
+              href="https://arshadakl.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-gray-400 transition hover:text-brand-400"
+              >Arshad</a
+            >
+          </span>
+          <span aria-hidden="true">·</span>
+          <a href="/llm.txt" class="transition hover:text-white">llm.txt</a>
         </p>
       </div>
     </div>
