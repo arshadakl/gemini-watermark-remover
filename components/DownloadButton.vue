@@ -22,7 +22,8 @@ function download() {
   if (props.blob) {
     const objectUrl = URL.createObjectURL(props.blob)
     triggerDownload(objectUrl)
-    URL.revokeObjectURL(objectUrl)
+    // Revoking synchronously can abort the download on some browsers.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
   } else if (props.url) {
     triggerDownload(props.url)
   }
