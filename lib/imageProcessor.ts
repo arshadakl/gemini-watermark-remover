@@ -204,7 +204,9 @@ export async function purifyImage(
   // Scale mask for cleanup
   const cleanSize = Math.max(8, Math.round(best.size * maskScale))
   const cleanAlphaMap = scaleAlphaMap(best.alphaMap, best.size, cleanSize)
-  const shift = best.method === 'forced' ? 0 : Math.floor((cleanSize - best.size) / 2)
+  // Center the scaled mask on the detected/forced position so expansion is
+  // symmetric around the watermark area.
+  const shift = Math.floor((cleanSize - best.size) / 2)
   const cleanX = best.x - shift
   const cleanY = best.y - shift
 

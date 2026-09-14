@@ -366,13 +366,13 @@ export async function purifyVideo(
   for (const s of videoSamples) avgDur += s.duration
   avgDur = avgDur / totalFrames || timescale / 30
   const fps = Math.max(1, Math.round(timescale / avgDur))
-  const avgDurMicro = (avgDur * 1e6) / timescale
+  const avgDurMicro = Math.round((avgDur * 1e6) / timescale)
 
   // Presentation timestamps (µs) of source key frames — used to align the
   // re-encoded GOP so the output keyframe cadence matches the input.
   const syncTimestamps = new Set<number>()
   for (const s of videoSamples) {
-    if (s.is_sync) syncTimestamps.add(Math.round((s.cts * 1e6) / s.timescale))
+    if (s.is_sync) syncTimestamps.add(toMicro(s.cts, s.timescale))
   }
 
   console.log(`${TAG} Source: ${width}x${height}, ${totalFrames} frames, ~${fps}fps, codec ${videoTrack.codec}`)
@@ -381,10 +381,11 @@ export async function purifyVideo(
   const useManual = !!options.forcePosition
 
   // Load masks. For manual mode on unsupported resolutions, use the 1080p
-  // colour mask as the base and scale it to the requested size.
+  // colour mask as the base and scale it to the requested size. For auto mode,
+  // keep the original alpha-only 720p behaviour so opacity estimation works.
   const maskSize = useManual ? VIDEO_MASK_1080_SIZE : (is1080 ? VIDEO_MASK_1080_SIZE : VIDEO_MASK_720_SIZE)
   const maskB64 = useManual ? VIDEO_MASK_1080_B64 : (is1080 ? VIDEO_MASK_1080_B64 : VIDEO_MASK_720_B64)
-  const alphaMapData = await loadAlphaMap(maskB64, maskSize, true)
+  const alphaMapData = await loadAlphaMap(maskB64, maskSize, useManual ? true : is1080)
 
   // Muxer setup
   const Mp4Muxer = await import('mp4-muxer')
@@ -609,8 +610,8 @@ export async function purifyVideo(
           format: 'RGBA',
           codedWidth: width,
           codedHeight: height,
-          timestamp: tsMicro,
-          duration: durMicro != null && durMicro > 0 ? durMicro : avgDurMicro,
+          timestamp: Math.round(tsMicro),
+          duration: durMicro != null && durMicro > 0 ? Math.round(durMicro) : avgDurMicro,
         }
         const isSync = syncTimestamps.has(Math.round(tsMicro))
         const keyFrame = processed === 0 || isSync || processed % keyInterval === 0
