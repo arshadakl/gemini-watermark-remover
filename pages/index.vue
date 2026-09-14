@@ -900,13 +900,15 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-auto p-4">
-              <WatermarkMarker
-                :src="imagePreviewUrl"
-                :width="imageDimensions.width"
-                :height="imageDimensions.height"
-                v-model="imageMarkerDraft"
-              />
+            <div class="min-h-0 flex-1 overflow-hidden p-4">
+              <div class="h-full w-full">
+                <WatermarkMarker
+                  :src="imagePreviewUrl"
+                  :width="imageDimensions.width"
+                  :height="imageDimensions.height"
+                  v-model="imageMarkerDraft"
+                />
+              </div>
             </div>
             <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
               <button
@@ -944,13 +946,15 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-auto p-4">
-              <WatermarkMarker
-                :src="videoFrameUrl"
-                :width="videoDimensions.width"
-                :height="videoDimensions.height"
-                v-model="videoMarkerDraft"
-              />
+            <div class="min-h-0 flex-1 overflow-hidden p-4">
+              <div class="h-full w-full">
+                <WatermarkMarker
+                  :src="videoFrameUrl"
+                  :width="videoDimensions.width"
+                  :height="videoDimensions.height"
+                  v-model="videoMarkerDraft"
+                />
+              </div>
             </div>
             <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
               <button

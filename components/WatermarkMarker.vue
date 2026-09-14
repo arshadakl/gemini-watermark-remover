@@ -32,10 +32,19 @@ const startRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: 0 })
 let resizeObserver: ResizeObserver | null = null
 
 const displaySize = computed(() => {
-  if (containerWidth.value > 0 && containerHeight.value > 0) {
-    return { width: containerWidth.value, height: containerHeight.value }
+  const cw = containerWidth.value
+  const ch = containerHeight.value
+  if (cw <= 0 || ch <= 0 || props.width <= 0 || props.height <= 0) {
+    return { width: 0, height: 0 }
   }
-  return { width: props.width, height: props.height }
+  const ratio = props.height / props.width
+  let width = cw
+  let height = width * ratio
+  if (height > ch) {
+    height = ch
+    width = height / ratio
+  }
+  return { width, height }
 })
 
 const scale = computed(() => {
@@ -127,7 +136,7 @@ function draw() {
   const cssWidth = displaySize.value.width
   const cssHeight = displaySize.value.height
   // Skip drawing until the container has a real measured size.
-  if (cssWidth === props.width && cssHeight === props.height && !containerRef.value) return
+  if (cssWidth <= 0 || cssHeight <= 0) return
   canvas.width = Math.round(cssWidth * dpr)
   canvas.height = Math.round(cssHeight * dpr)
   canvas.style.width = `${cssWidth}px`
@@ -251,10 +260,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="relative w-full select-none">
+  <div ref="containerRef" class="relative flex h-full w-full select-none items-center justify-center">
     <canvas
       ref="canvasRef"
-      class="block w-full cursor-crosshair touch-none rounded-2xl"
+      class="block max-h-full max-w-full cursor-crosshair touch-none rounded-2xl"
       :class="disabled ? 'opacity-60' : ''"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
