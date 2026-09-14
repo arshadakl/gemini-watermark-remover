@@ -60,7 +60,7 @@ useHead({
   ],
 })
 
-const mode = ref<ProcessingMode>('image')
+const mode = ref<ProcessingMode>('video')
 const openFaq = ref<number | null>(null)
 const uploadBounce = ref(false)
 
@@ -370,18 +370,6 @@ const latestPosts = [
             <div class="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
               <button
                 class="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-all"
-                :class="mode === 'image' ? 'bg-brand-500 text-black' : 'text-gray-400 hover:text-white'"
-                @click="switchMode('image')"
-              >
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-                Image
-              </button>
-              <button
-                class="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-all"
                 :class="mode === 'video' ? 'bg-brand-500 text-black' : 'text-gray-400 hover:text-white'"
                 :disabled="!videoSupport.supported"
                 :title="videoSupport.reason ?? 'Requires Chrome, Edge, or Brave 94+'"
@@ -392,6 +380,18 @@ const latestPosts = [
                   <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
                 </svg>
                 Video
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-all"
+                :class="mode === 'image' ? 'bg-brand-500 text-black' : 'text-gray-400 hover:text-white'"
+                @click="switchMode('image')"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                Image
               </button>
             </div>
           </div>
