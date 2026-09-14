@@ -535,9 +535,9 @@ const latestPosts = [
 
               <!-- Action buttons -->
               <div class="px-8 py-6">
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
                   <button
-                    class="flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition disabled:opacity-50"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition disabled:opacity-50 sm:w-auto"
                     :class="isDone && !isBusy ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-brand-500 text-black hover:bg-brand-400'"
                     :disabled="isBusy || isDone || (mode === 'video' && !videoSupport.supported)"
                     @click="mode === 'image' ? handleImageProcess() : handleVideoProcess()"
@@ -557,7 +557,7 @@ const latestPosts = [
                     v-if="(mode === 'image' && cleanedImageUrl) || (mode === 'video' && videoDownloadUrl)"
                     :href="mode === 'image' ? cleanedImageUrl! : videoDownloadUrl!"
                     :download="mode === 'image' ? imageDownloadName : `cleaned-${videoFile!.name}`"
-                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5 sm:flex-none"
                   >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -566,7 +566,7 @@ const latestPosts = [
                   </a>
                   <a
                     v-else
-                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-gray-600 cursor-not-allowed"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-gray-600 cursor-not-allowed sm:flex-none"
                   >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -574,7 +574,7 @@ const latestPosts = [
                     Download
                   </a>
                   <button
-                    class="flex items-center justify-center gap-2 rounded-xl border px-6 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                     :class="isBusy ? 'border-white/10 text-gray-600' : 'border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'"
                     :disabled="isBusy"
                     @click="resetAll"
