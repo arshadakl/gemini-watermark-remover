@@ -52,6 +52,30 @@ export function rescaleBilinear(
 }
 
 /**
+ * Scale a single-channel alpha map to a new square size.
+ *
+ * @param alpha - Source alpha values (srcSize × srcSize).
+ * @param srcSize - Source dimension.
+ * @param dstSize - Target dimension.
+ * @returns Rescaled alpha values (dstSize × dstSize).
+ */
+export function scaleAlphaMap(alpha: Float32Array, srcSize: number, dstSize: number): Float32Array {
+  return srcSize === dstSize ? alpha : rescaleBilinear(alpha, srcSize, dstSize)
+}
+
+/**
+ * Scale a 3-channel RGB colour map to a new square size.
+ *
+ * @param color - Source colour values (srcSize × srcSize × 3).
+ * @param srcSize - Source dimension.
+ * @param dstSize - Target dimension.
+ * @returns Rescaled colour values (dstSize × dstSize × 3).
+ */
+export function scaleColorMap(color: Float32Array, srcSize: number, dstSize: number): Float32Array {
+  return srcSize === dstSize ? color : rescaleColor(color, srcSize, dstSize)
+}
+
+/**
  * Bilinear rescale for a 3-channel Float32Array (RGB colour map).
  *
  * @param values - Source colour values (oldSize × oldSize × 3).

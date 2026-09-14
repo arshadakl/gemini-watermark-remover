@@ -41,14 +41,16 @@ export interface ImageProcessOptions {
   logoValue?: number
   /** Mask scale factor (0.5–3.0). */
   maskScale?: number
-  /** Force a specific position, bypassing detection. */
-  forcePosition?: { x: number; y: number; size?: number }
+  /** Force a specific position and size, bypassing detection. */
+  forcePosition?: WatermarkRegion
 }
 
 /** Options that control video watermark removal. */
 export interface VideoProcessOptions {
   /** Progress callback invoked with stage + ratio. */
   onProgress?: (progress: ProgressState) => void
+  /** Force a specific position and size, bypassing detection. */
+  forcePosition?: WatermarkRegion
 }
 
 /** Progress reported during processing. */

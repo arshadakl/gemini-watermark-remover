@@ -6,7 +6,7 @@
  * alpha blending.
  */
 
-import type { ImageProcessOptions, ImageProcessResult, WatermarkDetection } from './types'
+import type { ImageProcessOptions, ImageProcessResult, WatermarkDetection, WatermarkRegion } from './types'
 import {
   NCC_GOOD,
   NCC_ACCEPT,
@@ -22,7 +22,7 @@ import {
   MASK_SCALE_MAX,
 } from './constants'
 import { pearsonNCC, scanBottomRight } from './ncc'
-import { rescaleBilinear } from './rescale'
+import { scaleAlphaMap } from './rescale'
 import { reverseBlend } from './blend'
 import { IMAGE_MASK_48_B64, IMAGE_MASK_96_B64, decodeImageMask } from './imageMasks'
 
@@ -102,22 +102,26 @@ export async function purifyImage(
 
   // Forced position path
   if (options.forcePosition) {
-    const fp = options.forcePosition
-    const inferSize = fp.size ?? (width > IMAGE_LARGE_THRESHOLD && height > IMAGE_LARGE_THRESHOLD ? 96 : 48)
-    const cfg = sizes.find(s => s.size === inferSize) || sizes[1]
-    const cx = Math.max(0, Math.min(width - cfg.size, Math.round(fp.x)))
-    const cy = Math.max(0, Math.min(height - cfg.size, Math.round(fp.y)))
-    const ncc = pearsonNCC(data, width, height, cfg.alphaMap, cfg.size, cx, cy, {
+    const fp = options.forcePosition as WatermarkRegion
+    const requestedSize = Math.max(16, Math.min(Math.min(width, height), Math.round(fp.size)))
+    // Pick the nearest base mask and scale it to the requested size.
+    const baseSize = requestedSize > (IMAGE_MASK_48_SIZE + IMAGE_MASK_96_SIZE) / 2 ? IMAGE_MASK_96_SIZE : IMAGE_MASK_48_SIZE
+    const baseCfg = sizes.find(s => s.size === baseSize) || sizes[1]
+    const alphaMap = scaleAlphaMap(baseCfg.alphaMap, baseSize, requestedSize)
+    const margin = baseCfg.margin
+    const cx = Math.max(0, Math.min(width - requestedSize, Math.round(fp.x)))
+    const cy = Math.max(0, Math.min(height - requestedSize, Math.round(fp.y)))
+    const ncc = pearsonNCC(data, width, height, alphaMap, requestedSize, cx, cy, {
       grayscale: 'bt601',
     })
     best = {
-      size: cfg.size,
-      alphaMap: cfg.alphaMap,
+      size: requestedSize,
+      alphaMap,
       x: cx,
       y: cy,
       ncc: Math.max(ncc, nccAccept),
-      autoX: width - cfg.margin - cfg.size,
-      autoY: height - cfg.margin - cfg.size,
+      autoX: width - margin - requestedSize,
+      autoY: height - margin - requestedSize,
       method: 'forced',
     }
   } else {
@@ -199,9 +203,7 @@ export async function purifyImage(
 
   // Scale mask for cleanup
   const cleanSize = Math.max(8, Math.round(best.size * maskScale))
-  const cleanAlphaMap = maskScale !== 1
-    ? rescaleBilinear(best.alphaMap, best.size, cleanSize)
-    : best.alphaMap
+  const cleanAlphaMap = scaleAlphaMap(best.alphaMap, best.size, cleanSize)
   const shift = best.method === 'forced' ? 0 : Math.floor((cleanSize - best.size) / 2)
   const cleanX = best.x - shift
   const cleanY = best.y - shift

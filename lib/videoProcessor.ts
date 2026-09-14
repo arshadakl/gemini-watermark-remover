@@ -7,7 +7,7 @@
  * Port of Erasio's page/videoProcessor.js, refactored to use shared modules.
  */
 
-import type { ProgressState, VideoProcessOptions } from './types'
+import type { ProgressState, VideoProcessOptions, WatermarkRegion } from './types'
 import {
   OPACITY_LEVELS,
   VIDEO_MASK_720_SIZE,
@@ -27,7 +27,7 @@ import {
 } from './constants'
 import { clamp } from './utils'
 import { pearsonNCC } from './ncc'
-import { rescaleBilinear } from './rescale'
+import { scaleAlphaMap, scaleColorMap } from './rescale'
 import { reverseBlend } from './blend'
 import { VIDEO_MASK_720_B64, VIDEO_MASK_1080_B64, decodeVideoMask } from './videoMasks'
 // @ts-expect-error — mp4box has no TypeScript declarations
@@ -351,10 +351,12 @@ export async function purifyVideo(
   const height = videoTrack.video.height
   const dimKey = `${width}x${height}`
 
-  if (!SUPPORTED_VIDEO_DIMS.has(dimKey)) {
+  const isSupportedDim = SUPPORTED_VIDEO_DIMS.has(dimKey)
+  if (!isSupportedDim && !options.forcePosition) {
     throw new Error(
       `Unsupported dimensions: ${width} × ${height}. ` +
-      `Supported: 1280×720, 720×1280, 1920×1080, 1080×1920.`,
+      `Supported: 1280×720, 720×1280, 1920×1080, 1080×1920. ` +
+      `Use manual watermark selection for this resolution.`,
     )
   }
 
@@ -376,20 +378,13 @@ export async function purifyVideo(
   console.log(`${TAG} Source: ${width}x${height}, ${totalFrames} frames, ~${fps}fps, codec ${videoTrack.codec}`)
 
   const is1080 = (width === 1920 && height === 1080) || (width === 1080 && height === 1920)
+  const useManual = !!options.forcePosition
 
-  // Load masks
-  const maskSize = is1080 ? VIDEO_MASK_1080_SIZE : VIDEO_MASK_720_SIZE
-  const maskB64 = is1080 ? VIDEO_MASK_1080_B64 : VIDEO_MASK_720_B64
-  const alphaMapData = await loadAlphaMap(maskB64, maskSize, is1080)
-
-  const offsets = is1080 ? OFFSETS_1080 : OFFSETS_720
-  const candidates = offsets.map(off => ({
-    x: clamp(width - off, 0, width - maskSize),
-    y: clamp(height - off, 0, height - maskSize),
-    alphaMap: alphaMapData,
-    score: 0,
-    baseStrength: 1,
-  }))
+  // Load masks. For manual mode on unsupported resolutions, use the 1080p
+  // colour mask as the base and scale it to the requested size.
+  const maskSize = useManual ? VIDEO_MASK_1080_SIZE : (is1080 ? VIDEO_MASK_1080_SIZE : VIDEO_MASK_720_SIZE)
+  const maskB64 = useManual ? VIDEO_MASK_1080_B64 : (is1080 ? VIDEO_MASK_1080_B64 : VIDEO_MASK_720_B64)
+  const alphaMapData = await loadAlphaMap(maskB64, maskSize, true)
 
   // Muxer setup
   const Mp4Muxer = await import('mp4-muxer')
@@ -407,7 +402,8 @@ export async function purifyVideo(
       : undefined,
   })
 
-  // Encoder setup
+  // Encoder setup + pre-flight check so unsupported resolutions fail fast
+  // with a readable message instead of producing a broken file.
   const durationSeconds = (avgDur * totalFrames) / timescale || totalFrames / fps
   let sourceBytes = 0
   for (const s of videoSamples) sourceBytes += (s.data?.byteLength ?? 0)
@@ -430,7 +426,12 @@ export async function purifyVideo(
   if (!support.supported) {
     encoderConfig = { ...encoderConfig, codec: 'avc1.42001f' }
     support = await VideoEncoder.isConfigSupported(encoderConfig)
-    if (!support.supported) throw new Error('No supported H.264 encoder configuration')
+    if (!support.supported) {
+      throw new Error(
+        `This browser cannot encode ${width}×${height} video. ` +
+        `Try a 720p or 1080p MP4, or use Chrome/Edge on desktop.`,
+      )
+    }
   }
 
   let encodeError: any = null
@@ -440,115 +441,148 @@ export async function purifyVideo(
   })
   encoder.configure(encoderConfig)
 
-  // Calibrate on frame at ~15% — but must start from a key frame
   report(onProgress, 'analyze', 0)
 
-  const targetIdx = Math.floor(0.15 * totalFrames)
-  // Find the nearest key frame at or before the target
-  let calStartIdx = targetIdx
-  while (calStartIdx > 0 && !videoSamples[calStartIdx].is_sync) calStartIdx--
+  let chosen: any
 
-  const calSamples = videoSamples.slice(calStartIdx, targetIdx + 1)
-  if (calSamples.length) {
-    const decoder = new VideoDecoder({
-      output: (frame: any) => {
-        // Only score the last frame (the target), discard intermediate frames
-        const { ctx } = create2dCanvas(width, height)
-        ctx.drawImage(frame, 0, 0, width, height)
-        frame.close()
-        const calData = ctx.getImageData(0, 0, width, height)
-
-        for (const c of candidates) {
-          c.score = pearsonNCC(calData.data, width, height, c.alphaMap.values, maskSize, c.x, c.y, {
-            grayscale: 'average',
-            alphaCutoff: 0.08,
-          })
-        }
-      },
-      error: (e: any) => { throw new Error(TAG + ' calibration decode error: ' + e.message) },
-    })
-
-    decoder.configure({
-      codec: videoTrack.codec,
-      codedWidth: width,
-      codedHeight: height,
-      description: videoDescription || undefined,
-    })
-
-    // Feed from the key frame up to the target
-    for (const s of calSamples) {
-      decoder.decode(new EncodedVideoChunk({
-        type: s.is_sync ? 'key' : 'delta',
-        timestamp: toMicro(s.cts, s.timescale),
-        duration: toMicro(s.duration, s.timescale),
-        data: s.data,
-      }))
+  if (useManual) {
+    const fp = options.forcePosition as WatermarkRegion
+    const requestedSize = Math.max(16, Math.min(Math.min(width, height), Math.round(fp.size)))
+    const values = scaleAlphaMap(alphaMapData.values, maskSize, requestedSize)
+    const colorValues = alphaMapData.colorValues
+      ? scaleColorMap(alphaMapData.colorValues, maskSize, requestedSize)
+      : undefined
+    const cx = Math.max(0, Math.min(width - requestedSize, Math.round(fp.x)))
+    const cy = Math.max(0, Math.min(height - requestedSize, Math.round(fp.y)))
+    chosen = {
+      x: cx,
+      y: cy,
+      alphaMap: { values, colorValues, width: requestedSize, height: requestedSize },
+      baseStrength: 1,
+      opacity: 1,
+      overlayValue: 250,
+      ceiling: 1,
+      edgeCleanup: { strength: EDGE_STRENGTH, radius: EDGE_RADIUS, maxPasses: EDGE_MAX_PASSES },
     }
-    await decoder.flush()
-    decoder.close()
-  }
+    console.log(`${TAG} manual: pos=(${chosen.x},${chosen.y}) mask=${requestedSize}px`)
+  } else {
+    const offsets = is1080 ? OFFSETS_1080 : OFFSETS_720
+    const candidates = offsets.map(off => ({
+      x: clamp(width - off, 0, width - maskSize),
+      y: clamp(height - off, 0, height - maskSize),
+      alphaMap: alphaMapData,
+      score: 0,
+      baseStrength: 1,
+    }))
 
-  // Pick best candidate
-  const best = candidates.reduce((a, b) => (b.score > a.score ? b : a))
-  const tieMargin = 0.04
-  const chosen = best.score >= candidates[0].score + tieMargin ? best : candidates[0]
+    // Calibrate on frame at ~15% — but must start from a key frame
+    const targetIdx = Math.floor(0.15 * totalFrames)
+    // Find the nearest key frame at or before the target
+    let calStartIdx = targetIdx
+    while (calStartIdx > 0 && !videoSamples[calStartIdx].is_sync) calStartIdx--
 
-  const calData = create2dCanvas(width, height)
+    const calSamples = videoSamples.slice(calStartIdx, targetIdx + 1)
+    if (calSamples.length) {
+      const decoder = new VideoDecoder({
+        output: (frame: any) => {
+          // Only score the last frame (the target), discard intermediate frames
+          const { ctx } = create2dCanvas(width, height)
+          ctx.drawImage(frame, 0, 0, width, height)
+          frame.close()
+          const calData = ctx.getImageData(0, 0, width, height)
 
-  // Estimate opacity — decode from key frames, score only the target frame
-  const histogram: Record<number, number> = {}
-  for (const op of OPACITY_LEVELS) histogram[op] = 0
-  const sampleCount = Math.min(5, totalFrames)
-  for (let fi = 0; fi < sampleCount; fi++) {
-    const targetSampleIdx = Math.floor((fi * totalFrames) / sampleCount)
-    // Find nearest key frame at or before this index
-    let startIdx = targetSampleIdx
-    while (startIdx > 0 && !videoSamples[startIdx].is_sync) startIdx--
-    const samples = videoSamples.slice(startIdx, targetSampleIdx + 1)
-    if (!samples.length) continue
+          for (const c of candidates) {
+            c.score = pearsonNCC(calData.data, width, height, c.alphaMap.values, maskSize, c.x, c.y, {
+              grayscale: 'average',
+              alphaCutoff: 0.08,
+            })
+          }
+        },
+        error: (e: any) => { throw new Error(TAG + ' calibration decode error: ' + e.message) },
+      })
 
-    // Score only the frame we actually want — the decoder output callback
-    // fires for every intermediate frame, which would skew the histogram.
-    const targetTsMicro = toMicro(videoSamples[targetSampleIdx].cts, videoSamples[targetSampleIdx].timescale)
+      decoder.configure({
+        codec: videoTrack.codec,
+        codedWidth: width,
+        codedHeight: height,
+        description: videoDescription || undefined,
+      })
 
-    const d = new VideoDecoder({
-      output: (frame: any) => {
-        const isTarget = Math.round(frame.timestamp) === targetTsMicro
-        if (isTarget) {
-          calData.ctx.drawImage(frame, 0, 0, width, height)
-          const imgData = calData.ctx.getImageData(0, 0, width, height)
-          const op = estimateOpacity(imgData, chosen)
-          histogram[op] = (histogram[op] || 0) + 1
-        }
-        frame.close()
-      },
-      error: (e: any) => { throw new Error(TAG + ' opacity decode error: ' + e.message) },
-    })
-    d.configure({ codec: videoTrack.codec, codedWidth: width, codedHeight: height, description: videoDescription || undefined })
-    for (const s of samples) {
-      d.decode(new EncodedVideoChunk({
-        type: s.is_sync ? 'key' : 'delta',
-        timestamp: toMicro(s.cts, s.timescale),
-        duration: toMicro(s.duration, s.timescale),
-        data: s.data,
-      }))
+      // Feed from the key frame up to the target
+      for (const s of calSamples) {
+        decoder.decode(new EncodedVideoChunk({
+          type: s.is_sync ? 'key' : 'delta',
+          timestamp: toMicro(s.cts, s.timescale),
+          duration: toMicro(s.duration, s.timescale),
+          data: s.data,
+        }))
+      }
+      await decoder.flush()
+      decoder.close()
     }
-    await d.flush()
-    d.close()
-  }
 
-  let modalOpacity = OPACITY_LEVELS[0], modalCount = 0
-  for (const [k, v] of Object.entries(histogram)) {
-    if (v > modalCount) { modalCount = v; modalOpacity = parseFloat(k) }
-  }
-  chosen.opacity = modalOpacity
-  if (modalOpacity >= 1 && !chosen.alphaMap.colorValues) {
-    chosen.overlayValue = 255
-    chosen.ceiling = 0.99
-    chosen.edgeCleanup = { strength: EDGE_STRENGTH, radius: EDGE_RADIUS, maxPasses: EDGE_MAX_PASSES }
-  }
+    // Pick best candidate
+    const best = candidates.reduce((a, b) => (b.score > a.score ? b : a))
+    const tieMargin = 0.04
+    chosen = best.score >= candidates[0].score + tieMargin ? best : candidates[0]
 
-  console.log(`${TAG} calibrated: pos=(${chosen.x},${chosen.y}) mask=${maskSize}px score=${chosen.score.toFixed(3)} opacity=${chosen.opacity}`)
+    const calData = create2dCanvas(width, height)
+
+    // Estimate opacity — decode from key frames, score only the target frame
+    const histogram: Record<number, number> = {}
+    for (const op of OPACITY_LEVELS) histogram[op] = 0
+    const sampleCount = Math.min(5, totalFrames)
+    for (let fi = 0; fi < sampleCount; fi++) {
+      const targetSampleIdx = Math.floor((fi * totalFrames) / sampleCount)
+      // Find nearest key frame at or before this index
+      let startIdx = targetSampleIdx
+      while (startIdx > 0 && !videoSamples[startIdx].is_sync) startIdx--
+      const samples = videoSamples.slice(startIdx, targetSampleIdx + 1)
+      if (!samples.length) continue
+
+      // Score only the frame we actually want — the decoder output callback
+      // fires for every intermediate frame, which would skew the histogram.
+      const targetTsMicro = toMicro(videoSamples[targetSampleIdx].cts, videoSamples[targetSampleIdx].timescale)
+
+      const d = new VideoDecoder({
+        output: (frame: any) => {
+          const isTarget = Math.round(frame.timestamp) === targetTsMicro
+          if (isTarget) {
+            calData.ctx.drawImage(frame, 0, 0, width, height)
+            const imgData = calData.ctx.getImageData(0, 0, width, height)
+            const op = estimateOpacity(imgData, chosen)
+            histogram[op] = (histogram[op] || 0) + 1
+          }
+          frame.close()
+        },
+        error: (e: any) => { throw new Error(TAG + ' opacity decode error: ' + e.message) },
+      })
+      d.configure({ codec: videoTrack.codec, codedWidth: width, codedHeight: height, description: videoDescription || undefined })
+      for (const s of samples) {
+        d.decode(new EncodedVideoChunk({
+          type: s.is_sync ? 'key' : 'delta',
+          timestamp: toMicro(s.cts, s.timescale),
+          duration: toMicro(s.duration, s.timescale),
+          data: s.data,
+        }))
+      }
+      await d.flush()
+      d.close()
+    }
+
+    let modalOpacity = OPACITY_LEVELS[0], modalCount = 0
+    for (const [k, v] of Object.entries(histogram)) {
+      if (v > modalCount) { modalCount = v; modalOpacity = parseFloat(k) }
+    }
+    chosen.opacity = modalOpacity
+    if (modalOpacity >= 1 && !chosen.alphaMap.colorValues) {
+      chosen.overlayValue = 255
+      chosen.ceiling = 0.99
+      chosen.edgeCleanup = { strength: EDGE_STRENGTH, radius: EDGE_RADIUS, maxPasses: EDGE_MAX_PASSES }
+    }
+
+    console.log(`${TAG} calibrated: pos=(${chosen.x},${chosen.y}) mask=${maskSize}px score=${chosen.score.toFixed(3)} opacity=${chosen.opacity}`)
+  }
 
   report(onProgress, 'analyze', 1)
 
