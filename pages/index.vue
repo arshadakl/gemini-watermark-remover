@@ -55,11 +55,11 @@ useHead({
         '@type': 'FAQPage',
         mainEntity: [
           { '@type': 'Question', name: 'Is my data really private?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. All processing happens directly in your browser using Web APIs. No files are ever uploaded to any server. Your images and videos never leave your device.' } },
-          { '@type': 'Question', name: 'What file types are supported?', acceptedAnswer: { '@type': 'Answer', text: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Supported video resolutions: 1280×720, 720×1280, 1920×1080, and 1080×1920.' } },
+          { '@type': 'Question', name: 'What file types are supported?', acceptedAnswer: { '@type': 'Answer', text: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Auto-detection works best at 1280×720, 720×1280, 1920×1080, and 1080×1920; other resolutions can be cleaned with the manual watermark marker.' } },
           { '@type': 'Question', name: 'Can it remove all AI watermarks?', acceptedAnswer: { '@type': 'Answer', text: 'This tool removes the visible Gemini sparkle watermark added to AI-generated content. It does not remove invisible watermarks like Google\'s SynthID, which are embedded across all pixels.' } },
           { '@type': 'Question', name: 'Is it free to use?', acceptedAnswer: { '@type': 'Answer', text: 'Yes! The tool is completely free. The watermark removal algorithm runs entirely in your browser using WebCodecs and Canvas APIs.' } },
           { '@type': 'Question', name: 'Why do I need Chrome or Edge for video?', acceptedAnswer: { '@type': 'Answer', text: 'Video processing uses the WebCodecs API, which is currently only available in Chromium-based browsers (Chrome, Edge, Brave, Opera). Image processing works in all modern browsers.' } },
-          { '@type': 'Question', name: 'Does it work with Veo and Google Flow videos?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. The video pipeline detects and removes the visible Gemini and Veo sparkle on every frame of MP4 files exported from Gemini, Veo, and Google Flow. Supported resolutions are 1280×720, 720×1280, 1920×1080, and 1080×1920.' } },
+          { '@type': 'Question', name: 'Does it work with Veo and Google Flow videos?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. The video pipeline detects and removes the visible Gemini and Veo sparkle on every frame of MP4 files exported from Gemini, Veo, and Google Flow. Auto-detection is tuned for 1280×720, 720×1280, 1920×1080, and 1080×1920; other resolutions work with the manual watermark marker.' } },
           { '@type': 'Question', name: 'Does it remove the SynthID invisible watermark?', acceptedAnswer: { '@type': 'Answer', text: 'No. SynthID is baked into every pixel by Google DeepMind and is not user-detectable. This tool only removes the visible sparkle logo in the corner. SynthID detection requires Google\'s own verification tools.' } },
           { '@type': 'Question', name: 'Is removing the Gemini watermark legal?', acceptedAnswer: { '@type': 'Answer', text: 'Removing the watermark from content you generated yourself is fine. Do not use this tool to strip watermarks from copyrighted material you do not own. We are not affiliated with Google.' } },
           { '@type': 'Question', name: "What's the difference between the 48×48 and 96×96 watermarks?", acceptedAnswer: { '@type': 'Answer', text: 'Older Gemini exports use a 48×48 sparkle in the corner. Newer exports (Gemini 2.0 Flash and later) use a 96×96 sparkle. The tool auto-detects which one is present and uses the matching alpha map to reverse the blend.' } },
@@ -136,7 +136,7 @@ const imageDownloadName = computed(() => {
 // ── FAQ data ──────────────────────────────────────────────────────────────────
 const faqs = [
   { q: 'Is my data really private?', a: 'Yes. All processing happens directly in your browser using Web APIs. No files are ever uploaded to any server. Your images and videos never leave your device.' },
-  { q: 'What file types are supported?', a: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported at 1280×720, 720×1280, 1920×1080, and 1080×1920.' },
+  { q: 'What file types are supported?', a: 'We support PNG, JPG, WEBP, and GIF for images. For video, MP4 files with H.264 encoding are supported. Auto-detection works best at 1280×720, 720×1280, 1920×1080, and 1080×1920; other resolutions can be cleaned with the manual watermark marker.' },
   { q: 'Does it work with Veo and Google Flow videos?', a: 'Yes. The video pipeline detects and removes the visible Gemini, Veo, and Google Flow sparkle on every frame. Audio is preserved bit-for-bit.' },
   { q: 'Can it remove SynthID or other invisible watermarks?', a: 'No. SynthID is an invisible pattern baked into every pixel by Google DeepMind. This tool only removes the visible sparkle logo. SynthID detection requires Google\'s own verification tools.' },
   { q: 'Does it work with Nano Banana and Imagen?', a: 'Yes. Nano Banana, Imagen, and Gemini all stamp the same sparkle watermark in the corner. The detector auto-handles all three and both 48×48 and 96×96 sizes.' },
@@ -193,6 +193,10 @@ function toggleImageManualMode() {
 async function handleImageProcess() {
   const file = imageFile.value
   if (!file) return
+  if (imageManualMode.value && !imageDimensions.value) {
+    imageNotice.value = 'Image dimensions are still loading. Please wait a moment and try again.'
+    return
+  }
   const img = new Image()
   img.src = imagePreviewUrl.value!
   await new Promise<void>((resolve, reject) => {
@@ -269,12 +273,18 @@ async function onVideoSelect(file: File) {
       videoManualMode.value = true
       videoUnsupportedReason.value = `This resolution (${frame.width}×${frame.height}) is not auto-detected. Manual mode is on — mark your watermark area.`
     }
+  } else {
+    videoUnsupportedReason.value = 'Could not extract a preview frame. Manual marking is unavailable for this file.'
   }
 }
 
 async function handleVideoProcess() {
   const file = videoFile.value
   if (!file) return
+  if (videoManualMode.value && !videoDimensions.value) {
+    videoError.value = 'Video dimensions are still loading. Please wait a moment and try again.'
+    return
+  }
   const ab = await file.arrayBuffer()
   const blob = await processVideo(ab, {
     forcePosition: videoManualMode.value ? videoManualRegion.value : undefined,
@@ -610,7 +620,7 @@ const latestPosts = [
                   </div>
                 </div>
 
-                <div v-else class="grid gap-4" :class="videoManualMode ? '' : 'sm:grid-cols-2'">
+                <div v-else class="grid gap-4" :class="videoManualMode && !videoDownloadUrl ? '' : 'sm:grid-cols-2'">
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
@@ -627,7 +637,7 @@ const latestPosts = [
                       />
                     </div>
                   </div>
-                  <div v-if="!videoManualMode" class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                  <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-brand-400">Cleaned</span>
                     </div>
@@ -647,20 +657,23 @@ const latestPosts = [
                   </span>
                   <button
                     type="button"
-                    class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
+                    :disabled="isBusy"
                     @click="toggleImageManualMode"
                   >
                     {{ imageManualMode ? 'Use auto-detect' : 'Mark manually' }}
                   </button>
                 </div>
-                <div v-if="mode === 'video' && videoDimensions" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                <div v-if="mode === 'video' && (videoDimensions || videoUnsupportedReason)" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-gray-400">
-                      {{ videoManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
+                      {{ !videoDimensions ? 'Preview frame unavailable.' : videoManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
                     </span>
                     <button
+                      v-if="videoDimensions"
                       type="button"
-                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
+                      :disabled="isBusy"
                       @click="toggleVideoManualMode"
                     >
                       {{ videoManualMode ? 'Use auto-detect' : 'Mark manually' }}
