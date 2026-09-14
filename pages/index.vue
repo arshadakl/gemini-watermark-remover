@@ -79,9 +79,13 @@ const uploadBounce = ref(false)
 // ── Manual watermark selection state ──────────────────────────────────────────
 const imageManualMode = ref(false)
 const imageManualRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: IMAGE_MASK_96_SIZE })
+const imageMarkerDraft = ref<WatermarkRegion>({ x: 0, y: 0, size: IMAGE_MASK_96_SIZE })
+const imageMarkerOpen = ref(false)
 const imageDimensions = ref<{ width: number; height: number } | null>(null)
 const videoManualMode = ref(false)
 const videoManualRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_1080_SIZE })
+const videoMarkerDraft = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_1080_SIZE })
+const videoMarkerOpen = ref(false)
 const videoFrameUrl = ref<string | null>(null)
 const videoDimensions = ref<{ width: number; height: number } | null>(null)
 const videoUnsupportedReason = ref<string | null>(null)
@@ -149,8 +153,50 @@ const faqs = [
   { q: 'Will the cleaned file lose quality?', a: 'No. Reverse alpha blending restores the original pixel values mathematically, so outside the watermark zone every pixel is byte-identical to the source. Image resolution, video frame rate, bitrate, and audio are preserved.' },
 ]
 
-function toggleVideoManualMode() {
-  videoManualMode.value = !videoManualMode.value
+function openImageMarker() {
+  if (!imageDimensions.value || !imagePreviewUrl.value) return
+  imageMarkerDraft.value = { ...imageManualRegion.value }
+  imageMarkerOpen.value = true
+}
+
+function closeImageMarker() {
+  imageMarkerOpen.value = false
+}
+
+function confirmImageMarker() {
+  imageManualRegion.value = { ...imageMarkerDraft.value }
+  imageManualMode.value = true
+  imageMarkerOpen.value = false
+}
+
+function resetImageManual() {
+  imageManualMode.value = false
+  if (imageDimensions.value) {
+    imageManualRegion.value = estimateDefaultImageRegion(imageDimensions.value.width, imageDimensions.value.height)
+  }
+}
+
+function openVideoMarker() {
+  if (!videoDimensions.value || !videoFrameUrl.value) return
+  videoMarkerDraft.value = { ...videoManualRegion.value }
+  videoMarkerOpen.value = true
+}
+
+function closeVideoMarker() {
+  videoMarkerOpen.value = false
+}
+
+function confirmVideoMarker() {
+  videoManualRegion.value = { ...videoMarkerDraft.value }
+  videoManualMode.value = true
+  videoMarkerOpen.value = false
+}
+
+function resetVideoManual() {
+  videoManualMode.value = false
+  if (videoDimensions.value) {
+    videoManualRegion.value = estimateDefaultVideoRegion(videoDimensions.value.width, videoDimensions.value.height)
+  }
 }
 
 function toggleFaq(index: number) {
@@ -184,10 +230,6 @@ function onImageSelect(file: File) {
     imageManualRegion.value = estimateDefaultImageRegion(img.naturalWidth, img.naturalHeight)
   }
   img.src = imagePreviewUrl.value
-}
-
-function toggleImageManualMode() {
-  imageManualMode.value = !imageManualMode.value
 }
 
 async function handleImageProcess() {
@@ -249,6 +291,8 @@ function resetImageAll() {
   imageDimensions.value = null
   imageManualMode.value = false
   imageManualRegion.value = { x: 0, y: 0, size: IMAGE_MASK_96_SIZE }
+  imageMarkerDraft.value = { x: 0, y: 0, size: IMAGE_MASK_96_SIZE }
+  imageMarkerOpen.value = false
   clearResult('image')
 }
 
@@ -321,6 +365,8 @@ function resetVideoAll() {
   videoUnsupportedReason.value = null
   videoManualMode.value = false
   videoManualRegion.value = { x: 0, y: 0, size: VIDEO_MASK_1080_SIZE }
+  videoMarkerDraft.value = { x: 0, y: 0, size: VIDEO_MASK_1080_SIZE }
+  videoMarkerOpen.value = false
   clearResult('video')
 }
 
@@ -603,38 +649,22 @@ const latestPosts = [
                   </div>
                   <div class="p-3">
                     <img
-                      v-if="imagePreviewUrl && !imageManualMode"
+                      v-if="imagePreviewUrl"
                       :src="imagePreviewUrl"
                       class="max-h-[500px] w-full rounded-xl object-contain"
                       alt="Original image with watermark"
                       draggable="false"
                     />
-                    <WatermarkMarker
-                      v-if="imagePreviewUrl && imageManualMode && imageDimensions"
-                      :src="imagePreviewUrl"
-                      :width="imageDimensions.width"
-                      :height="imageDimensions.height"
-                      v-model="imageManualRegion"
-                      :sizes="[IMAGE_MASK_48_SIZE, IMAGE_MASK_96_SIZE]"
-                    />
                   </div>
                 </div>
 
-                <div v-else class="grid gap-4" :class="videoManualMode && !videoDownloadUrl ? '' : 'sm:grid-cols-2'">
+                <div v-else class="grid gap-4 sm:grid-cols-2">
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
                     </div>
                     <div class="p-3">
-                      <video v-if="videoPreviewUrl && !videoManualMode" :src="videoPreviewUrl" controls class="max-h-80 w-full rounded-xl" aria-label="Original video with watermark" />
-                      <WatermarkMarker
-                        v-if="videoManualMode && videoFrameUrl && videoDimensions"
-                        :src="videoFrameUrl"
-                        :width="videoDimensions.width"
-                        :height="videoDimensions.height"
-                        v-model="videoManualRegion"
-                        :sizes="[VIDEO_MASK_720_SIZE, VIDEO_MASK_1080_SIZE]"
-                      />
+                      <video v-if="videoPreviewUrl" :src="videoPreviewUrl" controls class="max-h-80 w-full rounded-xl" aria-label="Original video with watermark" />
                     </div>
                   </div>
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
@@ -653,31 +683,52 @@ const latestPosts = [
               <div class="mx-8 mt-4">
                 <div v-if="mode === 'image' && imageDimensions" class="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
                   <span class="text-xs text-gray-400">
-                    {{ imageManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
+                    {{ imageManualMode ? 'Manual watermark area selected.' : 'Auto-detect is active.' }}
                   </span>
-                  <button
-                    type="button"
-                    class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
-                    :disabled="isBusy"
-                    @click="toggleImageManualMode"
-                  >
-                    {{ imageManualMode ? 'Use auto-detect' : 'Mark manually' }}
-                  </button>
+                  <div class="flex items-center gap-3">
+                    <button
+                      v-if="imageManualMode"
+                      type="button"
+                      class="text-xs font-semibold text-gray-400 hover:text-white disabled:text-gray-600"
+                      :disabled="isBusy"
+                      @click="resetImageManual"
+                    >
+                      Use auto-detect
+                    </button>
+                    <button
+                      type="button"
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
+                      :disabled="isBusy"
+                      @click="openImageMarker"
+                    >
+                      {{ imageManualMode ? 'Adjust area' : 'Select area' }}
+                    </button>
+                  </div>
                 </div>
                 <div v-if="mode === 'video' && (videoDimensions || videoUnsupportedReason)" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-gray-400">
-                      {{ !videoDimensions ? 'Preview frame unavailable.' : videoManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
+                      {{ !videoDimensions ? 'Preview frame unavailable.' : videoManualMode ? 'Manual watermark area selected.' : 'Auto-detect is active.' }}
                     </span>
-                    <button
-                      v-if="videoDimensions"
-                      type="button"
-                      class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
-                      :disabled="isBusy"
-                      @click="toggleVideoManualMode"
-                    >
-                      {{ videoManualMode ? 'Use auto-detect' : 'Mark manually' }}
-                    </button>
+                    <div v-if="videoDimensions" class="flex items-center gap-3">
+                      <button
+                        v-if="videoManualMode"
+                        type="button"
+                        class="text-xs font-semibold text-gray-400 hover:text-white disabled:text-gray-600"
+                        :disabled="isBusy"
+                        @click="resetVideoManual"
+                      >
+                        Use auto-detect
+                      </button>
+                      <button
+                        type="button"
+                        class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
+                        :disabled="isBusy"
+                        @click="openVideoMarker"
+                      >
+                        {{ videoManualMode ? 'Adjust area' : 'Select area' }}
+                      </button>
+                    </div>
                   </div>
                   <p v-if="videoUnsupportedReason" class="text-xs text-amber-400">
                     {{ videoUnsupportedReason }}
@@ -832,6 +883,94 @@ const latestPosts = [
           </div>
         </div>
       </div>
+
+      <!-- Image manual marker modal -->
+      <Teleport v-if="imageMarkerOpen && imagePreviewUrl && imageDimensions" to="body">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeImageMarker">
+          <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
+              <button
+                type="button"
+                class="rounded-lg p-1 text-gray-400 hover:bg-white/5 hover:text-white"
+                @click="closeImageMarker"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="min-h-0 flex-1 overflow-auto p-4">
+              <WatermarkMarker
+                :src="imagePreviewUrl"
+                :width="imageDimensions.width"
+                :height="imageDimensions.height"
+                v-model="imageMarkerDraft"
+              />
+            </div>
+            <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
+              <button
+                type="button"
+                class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
+                @click="closeImageMarker"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
+                @click="confirmImageMarker"
+              >
+                Confirm selection
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Video manual marker modal -->
+      <Teleport v-if="videoMarkerOpen && videoFrameUrl && videoDimensions" to="body">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeVideoMarker">
+          <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
+              <button
+                type="button"
+                class="rounded-lg p-1 text-gray-400 hover:bg-white/5 hover:text-white"
+                @click="closeVideoMarker"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="min-h-0 flex-1 overflow-auto p-4">
+              <WatermarkMarker
+                :src="videoFrameUrl"
+                :width="videoDimensions.width"
+                :height="videoDimensions.height"
+                v-model="videoMarkerDraft"
+              />
+            </div>
+            <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
+              <button
+                type="button"
+                class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
+                @click="closeVideoMarker"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
+                @click="confirmVideoMarker"
+              >
+                Confirm selection
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </section>
 
     <!-- Features -->

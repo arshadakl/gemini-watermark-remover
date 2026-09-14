@@ -7,7 +7,6 @@ const props = defineProps<{
   width: number
   height: number
   modelValue: WatermarkRegion
-  sizes: number[]
   disabled?: boolean
 }>()
 
@@ -80,18 +79,6 @@ function updateRegion(region: Partial<WatermarkRegion>) {
   emit('change', next)
 }
 
-function setSize(size: number) {
-  const current = props.modelValue
-  // Keep center as close as possible when changing size.
-  const cx = current.x + current.size / 2
-  const cy = current.y + current.size / 2
-  updateRegion({
-    x: Math.round(cx - size / 2),
-    y: Math.round(cy - size / 2),
-    size,
-  })
-}
-
 function renderFrame(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cssWidth: number, cssHeight: number) {
   ctx.drawImage(img, 0, 0, cssWidth, cssHeight)
 
@@ -124,10 +111,10 @@ function renderFrame(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cssWi
   ctx.lineWidth = 1
   ctx.strokeRect(mx + ms - hs / 2, my + ms - hs / 2, hs, hs)
 
-  // Label
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
-  ctx.font = '12px ui-sans-serif, system-ui, sans-serif'
-  ctx.fillText(`${region.size}×${region.size}`, mx + 4, Math.max(14, my - 6))
+    // Label
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+    ctx.font = '12px ui-sans-serif, system-ui, sans-serif'
+    ctx.fillText(`${region.size}px`, mx + 4, Math.max(14, my - 6))
 }
 
 function draw() {
@@ -274,22 +261,6 @@ onUnmounted(() => {
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
     />
-
-    <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
-      <button
-        v-for="s in sizes"
-        :key="s"
-        type="button"
-        class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
-        :class="modelValue.size === s
-          ? 'border-brand-500 bg-brand-500 text-black'
-          : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/30'"
-        :disabled="disabled"
-        @click="setSize(s)"
-      >
-        {{ s }} px
-      </button>
-    </div>
 
     <p class="mt-2 text-center text-xs text-gray-400">
       Drag the box to move. Drag the bottom-right handle to resize.
