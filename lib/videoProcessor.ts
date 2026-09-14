@@ -41,6 +41,38 @@ function report(onProgress: VideoProcessOptions['onProgress'], stage: ProgressSt
   onProgress?.({ stage, ratio: clamp(ratio, 0, 1) })
 }
 
+/** Convert a sample timestamp/duration to integer microseconds for WebCodecs. */
+function toMicro(ts: number, timescale: number): number {
+  return Math.round((ts * 1e6) / timescale)
+}
+
+/**
+ * Create a 2D canvas for video frame readback.
+ *
+ * Prefers OffscreenCanvas but falls back to a regular HTMLCanvasElement on
+ * devices where OffscreenCanvas has driver bugs (some Android Chrome builds).
+ */
+function create2dCanvas(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D } {
+  if (typeof OffscreenCanvas === 'function') {
+    try {
+      const canvas = new OffscreenCanvas(width, height)
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (ctx) return { canvas, ctx }
+    } catch {
+      // Fall through to the HTML canvas path.
+    }
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) throw new Error('Canvas 2D context unavailable')
+  return { canvas, ctx }
+}
+
 function extractVideoDescription(file: any, track: any): Uint8Array | null {
   const trak = file.getTrackById(track.id)
   const entries =
@@ -391,6 +423,7 @@ export async function purifyVideo(
     height,
     bitrate: encodeBitrate,
     bitrateMode: 'variable',
+    latencyMode: 'realtime',
     avc: { format: 'avc' },
   }
   let support = await VideoEncoder.isConfigSupported(encoderConfig)
@@ -403,7 +436,7 @@ export async function purifyVideo(
   let encodeError: any = null
   const encoder = new VideoEncoder({
     output: (chunk: any, meta: any) => muxer.addVideoChunk(chunk, meta),
-    error: (e: any) => { encodeError = e; console.error(TAG, 'encoder error', e) },
+    error: (e: any) => { encodeError = e },
   })
   encoder.configure(encoderConfig)
 
@@ -420,8 +453,7 @@ export async function purifyVideo(
     const decoder = new VideoDecoder({
       output: (frame: any) => {
         // Only score the last frame (the target), discard intermediate frames
-        const cvs = new OffscreenCanvas(width, height)
-        const ctx = cvs.getContext('2d', { willReadFrequently: true })!
+        const { ctx } = create2dCanvas(width, height)
         ctx.drawImage(frame, 0, 0, width, height)
         frame.close()
         const calData = ctx.getImageData(0, 0, width, height)
@@ -433,7 +465,7 @@ export async function purifyVideo(
           })
         }
       },
-      error: (e: any) => console.error(TAG, 'calibration decode error', e),
+      error: (e: any) => { throw new Error(TAG + ' calibration decode error: ' + e.message) },
     })
 
     decoder.configure({
@@ -447,8 +479,8 @@ export async function purifyVideo(
     for (const s of calSamples) {
       decoder.decode(new EncodedVideoChunk({
         type: s.is_sync ? 'key' : 'delta',
-        timestamp: (s.cts * 1e6) / s.timescale,
-        duration: (s.duration * 1e6) / s.timescale,
+        timestamp: toMicro(s.cts, s.timescale),
+        duration: toMicro(s.duration, s.timescale),
         data: s.data,
       }))
     }
@@ -461,11 +493,7 @@ export async function purifyVideo(
   const tieMargin = 0.04
   const chosen = best.score >= candidates[0].score + tieMargin ? best : candidates[0]
 
-  const calData = (() => {
-    const cvs = new OffscreenCanvas(width, height)
-    const ctx = cvs.getContext('2d', { willReadFrequently: true })!
-    return { cvs, ctx }
-  })()
+  const calData = create2dCanvas(width, height)
 
   // Estimate opacity — decode from key frames, score only the target frame
   const histogram: Record<number, number> = {}
@@ -481,7 +509,7 @@ export async function purifyVideo(
 
     // Score only the frame we actually want — the decoder output callback
     // fires for every intermediate frame, which would skew the histogram.
-    const targetTsMicro = Math.round((videoSamples[targetSampleIdx].cts * 1e6) / videoSamples[targetSampleIdx].timescale)
+    const targetTsMicro = toMicro(videoSamples[targetSampleIdx].cts, videoSamples[targetSampleIdx].timescale)
 
     const d = new VideoDecoder({
       output: (frame: any) => {
@@ -494,14 +522,14 @@ export async function purifyVideo(
         }
         frame.close()
       },
-      error: () => {},
+      error: (e: any) => { throw new Error(TAG + ' opacity decode error: ' + e.message) },
     })
     d.configure({ codec: videoTrack.codec, codedWidth: width, codedHeight: height, description: videoDescription || undefined })
     for (const s of samples) {
       d.decode(new EncodedVideoChunk({
         type: s.is_sync ? 'key' : 'delta',
-        timestamp: (s.cts * 1e6) / s.timescale,
-        duration: (s.duration * 1e6) / s.timescale,
+        timestamp: toMicro(s.cts, s.timescale),
+        duration: toMicro(s.duration, s.timescale),
         data: s.data,
       }))
     }
@@ -525,8 +553,8 @@ export async function purifyVideo(
   report(onProgress, 'analyze', 1)
 
   // Process frames
-  const patchCanvas = new OffscreenCanvas(width, height)
-  const patchCtx = patchCanvas.getContext('2d', { willReadFrequently: true })!
+  const patchData = create2dCanvas(width, height)
+  const patchCtx = patchData.ctx
   let processed = 0
   // Minimum GOP length used only as a safety net; real keyframes are forced
   // on source sync-sample boundaries so seeking stays aligned with the input.
@@ -563,7 +591,7 @@ export async function purifyVideo(
         try { frame.close() } catch (_) { /* already closed */ }
       }
     },
-    error: (e: any) => { decodeError = e; console.error(TAG, 'decoder error', e) },
+    error: (e: any) => { decodeError = e },
   })
 
   decoder.configure({
@@ -578,7 +606,7 @@ export async function purifyVideo(
   // Backpressure pump — feed samples while respecting the decode/encode queue
   // caps so the encoder is never overwhelmed (this was the source of the
   // intermittent dropped/corrupt-frame glitches on long or high-res clips).
-  const MAX_QUEUE = 16
+  const MAX_QUEUE = 8
   let framesDecoded = 0
   for (const s of videoSamples) {
     if (decodeError) throw decodeError
@@ -587,8 +615,8 @@ export async function purifyVideo(
     }
     decoder.decode(new EncodedVideoChunk({
       type: s.is_sync ? 'key' : 'delta',
-      timestamp: (s.cts * 1e6) / s.timescale,
-      duration: (s.duration * 1e6) / s.timescale,
+      timestamp: toMicro(s.cts, s.timescale),
+      duration: toMicro(s.duration, s.timescale),
       data: s.data,
     }))
     framesDecoded++
@@ -638,8 +666,8 @@ export async function purifyVideo(
           muxer.addAudioChunk(
             new EncodedAudioChunk({
               type: 'key',
-              timestamp: (s.cts * 1e6) / s.timescale,
-              duration: (s.duration * 1e6) / s.timescale,
+              timestamp: toMicro(s.cts, s.timescale),
+              duration: toMicro(s.duration, s.timescale),
               data: s.data,
             }),
             audioMeta,
