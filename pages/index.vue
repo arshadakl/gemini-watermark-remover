@@ -535,9 +535,9 @@ const latestPosts = [
 
               <!-- Action buttons -->
               <div class="px-8 py-6">
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-[auto_auto_auto]">
+                <div class="flex flex-col gap-3 sm:flex-row">
                   <button
-                    class="col-span-2 flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition disabled:opacity-50 sm:col-auto"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition disabled:opacity-50 sm:w-auto"
                     :class="isDone && !isBusy ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-brand-500 text-black hover:bg-brand-400'"
                     :disabled="isBusy || isDone || (mode === 'video' && !videoSupport.supported)"
                     @click="mode === 'image' ? handleImageProcess() : handleVideoProcess()"
@@ -553,37 +553,39 @@ const latestPosts = [
                     </svg>
                     {{ isBusy ? 'Processing...' : isDone ? 'Watermark Removed' : 'Remove Watermark' }}
                   </button>
-                  <a
-                    v-if="(mode === 'image' && cleanedImageUrl) || (mode === 'video' && videoDownloadUrl)"
-                    :href="mode === 'image' ? cleanedImageUrl! : videoDownloadUrl!"
-                    :download="mode === 'image' ? imageDownloadName : `cleaned-${videoFile!.name}`"
-                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5"
-                  >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Download
-                  </a>
-                  <a
-                    v-else
-                    class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-gray-600 cursor-not-allowed"
-                  >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Download
-                  </a>
-                  <button
-                    class="flex items-center justify-center gap-2 rounded-xl border px-6 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-                    :class="isBusy ? 'border-white/10 text-gray-600' : 'border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'"
-                    :disabled="isBusy"
-                    @click="resetAll"
-                  >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
-                    Clear
-                  </button>
+                  <div class="grid grid-cols-2 gap-3 sm:contents">
+                    <a
+                      v-if="(mode === 'image' && cleanedImageUrl) || (mode === 'video' && videoDownloadUrl)"
+                      :href="mode === 'image' ? cleanedImageUrl! : videoDownloadUrl!"
+                      :download="mode === 'image' ? imageDownloadName : `cleaned-${videoFile!.name}`"
+                      class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-white/5 sm:px-6"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Download
+                    </a>
+                    <a
+                      v-else
+                      class="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3.5 text-sm font-semibold text-gray-600 cursor-not-allowed sm:px-6"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Download
+                    </a>
+                    <button
+                      class="flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
+                      :class="isBusy ? 'border-white/10 text-gray-600' : 'border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'"
+                      :disabled="isBusy"
+                      @click="resetAll"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                      Clear
+                    </button>
+                  </div>
                 </div>
               </div>
 
