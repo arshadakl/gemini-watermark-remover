@@ -86,6 +86,8 @@ const videoManualMode = ref(false)
 const videoManualRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_1080_SIZE })
 const videoMarkerDraft = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_1080_SIZE })
 const videoMarkerOpen = ref(false)
+const imageMarkerScrollRef = ref<HTMLElement | null>(null)
+const videoMarkerScrollRef = ref<HTMLElement | null>(null)
 const videoFrameUrl = ref<string | null>(null)
 const videoDimensions = ref<{ width: number; height: number } | null>(null)
 const videoUnsupportedReason = ref<string | null>(null)
@@ -198,6 +200,21 @@ function resetVideoManual() {
     videoManualRegion.value = estimateDefaultVideoRegion(videoDimensions.value.width, videoDimensions.value.height)
   }
 }
+
+function scrollMarkerToWatermark(el: HTMLElement | null) {
+  if (!el) return
+  // Watermark sits bottom-right, so start the view at the bottom of the frame.
+  el.scrollTop = el.scrollHeight
+  el.scrollLeft = el.scrollWidth
+}
+
+watch(imageMarkerOpen, (open) => {
+  if (open) nextTick(() => scrollMarkerToWatermark(imageMarkerScrollRef.value))
+})
+
+watch(videoMarkerOpen, (open) => {
+  if (open) nextTick(() => scrollMarkerToWatermark(videoMarkerScrollRef.value))
+})
 
 function toggleFaq(index: number) {
   openFaq.value = openFaq.value === index ? null : index
@@ -887,7 +904,7 @@ const latestPosts = [
       <!-- Image manual marker modal -->
       <Teleport v-if="imageMarkerOpen && imagePreviewUrl && imageDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeImageMarker">
-          <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+          <div class="flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
             <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
@@ -900,15 +917,13 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-hidden p-4">
-              <div class="h-full w-full">
-                <WatermarkMarker
-                  :src="imagePreviewUrl"
-                  :width="imageDimensions.width"
-                  :height="imageDimensions.height"
-                  v-model="imageMarkerDraft"
-                />
-              </div>
+            <div ref="imageMarkerScrollRef" class="min-h-0 flex-1 overflow-y-scroll p-4">
+              <WatermarkMarker
+                :src="imagePreviewUrl"
+                :width="imageDimensions.width"
+                :height="imageDimensions.height"
+                v-model="imageMarkerDraft"
+              />
             </div>
             <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
               <button
@@ -933,7 +948,7 @@ const latestPosts = [
       <!-- Video manual marker modal -->
       <Teleport v-if="videoMarkerOpen && videoFrameUrl && videoDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeVideoMarker">
-          <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+          <div class="flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
             <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
@@ -946,15 +961,13 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-hidden p-4">
-              <div class="h-full w-full">
-                <WatermarkMarker
-                  :src="videoFrameUrl"
-                  :width="videoDimensions.width"
-                  :height="videoDimensions.height"
-                  v-model="videoMarkerDraft"
-                />
-              </div>
+            <div ref="videoMarkerScrollRef" class="min-h-0 flex-1 overflow-y-scroll p-4">
+              <WatermarkMarker
+                :src="videoFrameUrl"
+                :width="videoDimensions.width"
+                :height="videoDimensions.height"
+                v-model="videoMarkerDraft"
+              />
             </div>
             <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
               <button

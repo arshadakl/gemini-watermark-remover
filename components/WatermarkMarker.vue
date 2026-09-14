@@ -33,17 +33,11 @@ let resizeObserver: ResizeObserver | null = null
 
 const displaySize = computed(() => {
   const cw = containerWidth.value
-  const ch = containerHeight.value
-  if (cw <= 0 || ch <= 0 || props.width <= 0 || props.height <= 0) {
+  if (cw <= 0 || props.width <= 0 || props.height <= 0) {
     return { width: 0, height: 0 }
   }
-  const ratio = props.height / props.width
-  let width = cw
-  let height = width * ratio
-  if (height > ch) {
-    height = ch
-    width = height / ratio
-  }
+  const width = cw
+  const height = width * (props.height / props.width)
   return { width, height }
 })
 
@@ -260,10 +254,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="relative flex h-full w-full select-none items-center justify-center">
+  <div ref="containerRef" class="relative w-full select-none">
     <canvas
       ref="canvasRef"
-      class="block max-h-full max-w-full cursor-crosshair touch-none rounded-2xl"
+      class="block w-full cursor-crosshair touch-none rounded-2xl"
       :class="disabled ? 'opacity-60' : ''"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
