@@ -92,6 +92,7 @@ const videoMarkerScrollRef = ref<HTMLElement | null>(null)
 // Decoded sparkle alpha map used as a guide overlay in the marker modal.
 const logoAlpha = ref<Float32Array | null>(null)
 const videoFrameUrl = ref<string | null>(null)
+const videoFrameLoading = ref(false)
 const videoDimensions = ref<{ width: number; height: number } | null>(null)
 const videoUnsupportedReason = ref<string | null>(null)
 
@@ -323,12 +324,14 @@ async function onVideoSelect(file: File) {
   videoFile.value = file
   videoPreviewUrl.value = URL.createObjectURL(file)
   videoFrameUrl.value = null
+  videoFrameLoading.value = true
   videoDimensions.value = null
   videoUnsupportedReason.value = null
   videoManualMode.value = false
   clearResult('video')
 
   const frame = await extractVideoFrame(file)
+  videoFrameLoading.value = false
   if (frame) {
     videoFrameUrl.value = frame.url
     videoDimensions.value = { width: frame.width, height: frame.height }
@@ -381,6 +384,7 @@ function resetVideoAll() {
   releaseVideoResult()
   videoFile.value = null
   videoFrameUrl.value = null
+  videoFrameLoading.value = false
   videoDimensions.value = null
   videoUnsupportedReason.value = null
   videoManualMode.value = false
@@ -426,40 +430,70 @@ function isSupportedVideoDimension(width: number, height: number): boolean {
   return SUPPORTED_VIDEO_DIMS.has(`${width}x${height}`)
 }
 
-async function extractVideoFrame(file: File): Promise<{ url: string; width: number; height: number } | null> {
+async function extractVideoFrame(
+  file: File,
+  seekSeconds = 1,
+): Promise<{ url: string; width: number; height: number } | null> {
   return new Promise((resolve) => {
     const video = document.createElement('video')
     video.muted = true
     video.playsInline = true
-    video.crossOrigin = 'anonymous'
+    video.preload = 'auto'
     const url = URL.createObjectURL(file)
     video.src = url
 
-    video.addEventListener('loadeddata', () => {
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const finish = (result: { url: string; width: number; height: number } | null) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      URL.revokeObjectURL(url)
+      resolve(result)
+    }
+
+    const drawFrame = () => {
       try {
-        const canvas = document.createElement('canvas')
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          URL.revokeObjectURL(url)
-          resolve(null)
+        const w = video.videoWidth
+        const h = video.videoHeight
+        if (!w || !h) {
+          finish(null)
           return
         }
-        ctx.drawImage(video, 0, 0)
-        URL.revokeObjectURL(url)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          finish(null)
+          return
+        }
+        ctx.drawImage(video, 0, 0, w, h)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
-        resolve({ url: dataUrl, width: video.videoWidth, height: video.videoHeight })
+        finish({ url: dataUrl, width: w, height: h })
       } catch {
-        URL.revokeObjectURL(url)
-        resolve(null)
+        finish(null)
+      }
+    }
+
+    video.addEventListener('loadedmetadata', () => {
+      // Many exports open on a black frame, so seek ~1s in before capturing.
+      const duration = Number.isFinite(video.duration) ? video.duration : 0
+      const target = duration > seekSeconds + 0.2 ? seekSeconds : 0
+      try {
+        video.currentTime = target
+      } catch {
+        drawFrame()
       }
     }, { once: true })
 
-    video.addEventListener('error', () => {
-      URL.revokeObjectURL(url)
-      resolve(null)
-    }, { once: true })
+    video.addEventListener('seeked', drawFrame, { once: true })
+
+    video.addEventListener('error', () => finish(null), { once: true })
+
+    // Safety net: if seeking stalls, capture whatever frame is available.
+    timer = setTimeout(drawFrame, 5000)
 
     video.load()
   })
@@ -730,10 +764,10 @@ const latestPosts = [
                     </button>
                   </div>
                 </div>
-                <div v-if="mode === 'video' && (videoDimensions || videoUnsupportedReason)" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                <div v-if="mode === 'video' && (videoFrameLoading || videoDimensions || videoUnsupportedReason)" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-gray-400">
-                      {{ !videoDimensions ? 'Preview frame unavailable.' : videoManualMode ? 'Manual watermark area selected.' : 'Auto-detect is active.' }}
+                      {{ videoFrameLoading ? 'Preparing preview frame...' : !videoDimensions ? 'Preview frame unavailable.' : videoManualMode ? 'Manual watermark area selected.' : 'Auto-detect is active.' }}
                     </span>
                     <div v-if="videoDimensions" class="flex items-center gap-3">
                       <button
@@ -748,14 +782,14 @@ const latestPosts = [
                       <button
                         type="button"
                         class="text-xs font-semibold text-brand-400 hover:text-brand-300 disabled:text-gray-600 disabled:hover:text-gray-600"
-                        :disabled="isBusy"
+                        :disabled="isBusy || videoFrameLoading"
                         @click="openVideoMarker"
                       >
                         {{ videoManualMode ? 'Adjust area' : 'Select area' }}
                       </button>
                     </div>
                   </div>
-                  <p v-if="videoUnsupportedReason" class="text-xs text-amber-400">
+                  <p v-if="videoUnsupportedReason && !videoFrameLoading" class="text-xs text-amber-400">
                     {{ videoUnsupportedReason }}
                   </p>
                 </div>
@@ -913,7 +947,7 @@ const latestPosts = [
       <Teleport v-if="imageMarkerOpen && imagePreviewUrl && imageDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeImageMarker">
           <div class="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
-            <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div class="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
                 type="button"
@@ -925,7 +959,7 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div ref="imageMarkerScrollRef" class="min-h-0 flex-1 overflow-y-scroll p-4">
+            <div ref="imageMarkerScrollRef" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable] sm:p-4">
               <WatermarkMarker
                 :src="imagePreviewUrl"
                 :width="imageDimensions.width"
@@ -935,7 +969,7 @@ const latestPosts = [
                 :overlay-size="IMAGE_MASK_96_SIZE"
               />
             </div>
-            <div class="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex shrink-0 flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p class="text-xs text-gray-400">
                 Drag the box onto the watermark and pull the corner handle to resize. Scroll to see the whole frame.
               </p>
@@ -964,7 +998,7 @@ const latestPosts = [
       <Teleport v-if="videoMarkerOpen && videoFrameUrl && videoDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeVideoMarker">
           <div class="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
-            <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div class="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
                 type="button"
@@ -976,7 +1010,7 @@ const latestPosts = [
                 </svg>
               </button>
             </div>
-            <div ref="videoMarkerScrollRef" class="min-h-0 flex-1 overflow-y-scroll p-4">
+            <div ref="videoMarkerScrollRef" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable] sm:p-4">
               <WatermarkMarker
                 :src="videoFrameUrl"
                 :width="videoDimensions.width"
@@ -986,7 +1020,7 @@ const latestPosts = [
                 :overlay-size="IMAGE_MASK_96_SIZE"
               />
             </div>
-            <div class="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex shrink-0 flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p class="text-xs text-gray-400">
                 Drag the box onto the watermark and pull the corner handle to resize. Scroll to see the whole frame.
               </p>
