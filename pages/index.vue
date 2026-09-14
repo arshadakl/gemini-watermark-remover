@@ -18,6 +18,7 @@ import {
   OFFSETS_1080,
   SUPPORTED_VIDEO_DIMS,
 } from '~/lib/constants'
+import { IMAGE_MASK_96_B64, decodeImageMask } from '~/lib/imageMasks'
 
 const route = useRoute()
 const siteUrl = 'https://watermark-remover.arshadakl.in'
@@ -88,6 +89,8 @@ const videoMarkerDraft = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_108
 const videoMarkerOpen = ref(false)
 const imageMarkerScrollRef = ref<HTMLElement | null>(null)
 const videoMarkerScrollRef = ref<HTMLElement | null>(null)
+// Decoded sparkle alpha map used as a guide overlay in the marker modal.
+const logoAlpha = ref<Float32Array | null>(null)
 const videoFrameUrl = ref<string | null>(null)
 const videoDimensions = ref<{ width: number; height: number } | null>(null)
 const videoUnsupportedReason = ref<string | null>(null)
@@ -490,6 +493,11 @@ async function restorePersistedResults() {
 onMounted(async () => {
   videoSupport.value = checkVideoSupport()
   await restorePersistedResults()
+  try {
+    logoAlpha.value = await decodeImageMask(IMAGE_MASK_96_B64, IMAGE_MASK_96_SIZE)
+  } catch {
+    logoAlpha.value = null
+  }
 })
 
 onBeforeUnmount(() => {
@@ -904,7 +912,7 @@ const latestPosts = [
       <!-- Image manual marker modal -->
       <Teleport v-if="imageMarkerOpen && imagePreviewUrl && imageDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeImageMarker">
-          <div class="flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+          <div class="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
             <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
@@ -923,23 +931,30 @@ const latestPosts = [
                 :width="imageDimensions.width"
                 :height="imageDimensions.height"
                 v-model="imageMarkerDraft"
+                :overlay-alpha="logoAlpha"
+                :overlay-size="IMAGE_MASK_96_SIZE"
               />
             </div>
-            <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
-              <button
-                type="button"
-                class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
-                @click="closeImageMarker"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
-                @click="confirmImageMarker"
-              >
-                Confirm selection
-              </button>
+            <div class="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs text-gray-400">
+                Drag the box onto the watermark and pull the corner handle to resize. Scroll to see the whole frame.
+              </p>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
+                  @click="closeImageMarker"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
+                  @click="confirmImageMarker"
+                >
+                  Confirm selection
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -948,7 +963,7 @@ const latestPosts = [
       <!-- Video manual marker modal -->
       <Teleport v-if="videoMarkerOpen && videoFrameUrl && videoDimensions" to="body">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="closeVideoMarker">
-          <div class="flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
+          <div class="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl">
             <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <h3 class="text-lg font-semibold text-white">Select watermark area</h3>
               <button
@@ -967,23 +982,30 @@ const latestPosts = [
                 :width="videoDimensions.width"
                 :height="videoDimensions.height"
                 v-model="videoMarkerDraft"
+                :overlay-alpha="logoAlpha"
+                :overlay-size="IMAGE_MASK_96_SIZE"
               />
             </div>
-            <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
-              <button
-                type="button"
-                class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
-                @click="closeVideoMarker"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
-                @click="confirmVideoMarker"
-              >
-                Confirm selection
-              </button>
+            <div class="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs text-gray-400">
+                Drag the box onto the watermark and pull the corner handle to resize. Scroll to see the whole frame.
+              </p>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  class="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-white/5"
+                  @click="closeVideoMarker"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-400"
+                  @click="confirmVideoMarker"
+                >
+                  Confirm selection
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -8,6 +8,10 @@ const props = defineProps<{
   height: number
   modelValue: WatermarkRegion
   disabled?: boolean
+  /** Optional alpha map of the Gemini sparkle, drawn inside the marker as a guide. */
+  overlayAlpha?: Float32Array | null
+  /** Dimension of the overlay alpha map. */
+  overlaySize?: number
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +27,8 @@ const containerWidth = ref(0)
 const containerHeight = ref(0)
 
 const HANDLE_SIZE = 16
+// Touch target for the resize handle (big enough for fingers on mobile).
+const HANDLE_TOUCH = 44
 
 type DragMode = 'move' | 'resize'
 const dragMode = ref<DragMode | null>(null)
@@ -30,6 +36,43 @@ const startPointer = ref({ x: 0, y: 0 })
 const startRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: 0 })
 
 let resizeObserver: ResizeObserver | null = null
+
+const overlayCanvas = ref<HTMLCanvasElement | null>(null)
+
+/**
+ * Pre-render the sparkle alpha map into a small canvas so it can be drawn as a
+ * translucent guide inside the marker without rebuilding it on every frame.
+ */
+function buildOverlayCanvas(): HTMLCanvasElement | null {
+  const alpha = props.overlayAlpha
+  const size = props.overlaySize
+  if (!alpha || !size || size <= 0 || typeof document === 'undefined') return null
+  if (alpha.length < size * size) return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  const img = ctx.createImageData(size, size)
+  for (let i = 0; i < size * size; i++) {
+    const a = Math.max(0, Math.min(1, alpha[i]))
+    const t = i * 4
+    // Tint the guide cyan so it stays visible over both light and dark frames.
+    img.data[t] = 0
+    img.data[t + 1] = 224
+    img.data[t + 2] = 255
+    img.data[t + 3] = Math.round(a * 190)
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
+
+watch(() => [props.overlayAlpha, props.overlaySize], () => {
+  overlayCanvas.value = buildOverlayCanvas()
+  draw()
+}, { immediate: true })
 
 const displaySize = computed(() => {
   const cw = containerWidth.value
@@ -99,6 +142,13 @@ function renderFrame(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cssWi
   ctx.fill('evenodd')
   ctx.restore()
 
+  // Sparkle guide overlay inside the marker
+  if (overlayCanvas.value) {
+    ctx.save()
+    ctx.drawImage(overlayCanvas.value, mx, my, ms, ms)
+    ctx.restore()
+  }
+
   // Marker border
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)'
   ctx.lineWidth = 2
@@ -155,57 +205,42 @@ function draw() {
   }
 }
 
-function hitTest(clientX: number, clientY: number): DragMode | null {
-  const canvas = canvasRef.value
-  if (!canvas) return null
-  const rect = canvas.getBoundingClientRect()
-  const x = clientX - rect.left
-  const y = clientY - rect.top
-  const region = props.modelValue
-  const mx = toDisplayX(region.x)
-  const my = toDisplayY(region.y)
-  const ms = toDisplaySize(region.size)
-  const hs = HANDLE_SIZE
-
-  // Bottom-right resize handle
-  if (
-    x >= mx + ms - hs &&
-    x <= mx + ms + hs &&
-    y >= my + ms - hs &&
-    y <= my + ms + hs
-  ) {
-    return 'resize'
+const markerStyle = computed(() => {
+  const r = props.modelValue
+  return {
+    left: `${toDisplayX(r.x)}px`,
+    top: `${toDisplayY(r.y)}px`,
+    width: `${toDisplaySize(r.size)}px`,
+    height: `${toDisplaySize(r.size)}px`,
   }
+})
 
-  // Inside marker body
-  if (x >= mx && x <= mx + ms && y >= my && y <= my + ms) {
-    return 'move'
+const handleStyle = computed(() => {
+  const ht = HANDLE_TOUCH
+  return {
+    right: `${-ht / 2}px`,
+    bottom: `${-ht / 2}px`,
+    width: `${ht}px`,
+    height: `${ht}px`,
   }
+})
 
-  return null
-}
-
-function onPointerDown(event: PointerEvent) {
+function beginDrag(mode: DragMode, event: PointerEvent) {
   if (props.disabled) return
   if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
 
-  const mode = hitTest(event.clientX, event.clientY)
-  if (!mode) return
-
   event.preventDefault()
+  event.stopPropagation()
   dragMode.value = mode
   startPointer.value = { x: event.clientX, y: event.clientY }
   startRegion.value = { ...props.modelValue }
-  canvasRef.value?.setPointerCapture(event.pointerId)
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
 }
 
-function onPointerMove(event: PointerEvent) {
+function onDragMove(event: PointerEvent) {
   if (!dragMode.value || !event.isPrimary) return
   event.preventDefault()
 
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
   const dx = event.clientX - startPointer.value.x
   const dy = event.clientY - startPointer.value.y
 
@@ -214,7 +249,7 @@ function onPointerMove(event: PointerEvent) {
       x: toNaturalX(toDisplayX(startRegion.value.x) + dx),
       y: toNaturalY(toDisplayY(startRegion.value.y) + dy),
     })
-  } else if (dragMode.value === 'resize') {
+  } else {
     const minDisplay = 16 * scale.value
     // Follow the dominant drag direction so both horizontal and vertical drags work.
     const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
@@ -223,11 +258,12 @@ function onPointerMove(event: PointerEvent) {
   }
 }
 
-function onPointerUp(event: PointerEvent) {
+function endDrag(event: PointerEvent) {
   if (!event.isPrimary) return
   dragMode.value = null
-  if (canvasRef.value?.hasPointerCapture(event.pointerId)) {
-    canvasRef.value.releasePointerCapture(event.pointerId)
+  const target = event.currentTarget as HTMLElement | null
+  if (target?.hasPointerCapture(event.pointerId)) {
+    target.releasePointerCapture(event.pointerId)
   }
 }
 
@@ -255,18 +291,31 @@ onUnmounted(() => {
 
 <template>
   <div ref="containerRef" class="relative w-full select-none">
+    <!-- Canvas is visual-only so the page can still scroll on touch devices. -->
     <canvas
       ref="canvasRef"
-      class="block w-full cursor-crosshair touch-none rounded-2xl"
+      class="block w-full rounded-2xl"
       :class="disabled ? 'opacity-60' : ''"
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerUp"
     />
 
-    <p class="mt-2 text-center text-xs text-gray-400">
-      Drag the box to move. Drag the bottom-right handle to resize.
-    </p>
+    <!-- Interaction layer: only the marker box captures drags. -->
+    <div
+      v-if="displaySize.width > 0"
+      class="absolute cursor-move touch-none"
+      :style="markerStyle"
+      @pointerdown="beginDrag('move', $event)"
+      @pointermove="onDragMove"
+      @pointerup="endDrag"
+      @pointercancel="endDrag"
+    >
+      <div
+        class="absolute touch-none"
+        :style="handleStyle"
+        @pointerdown="beginDrag('resize', $event)"
+        @pointermove="onDragMove"
+        @pointerup="endDrag"
+        @pointercancel="endDrag"
+      />
+    </div>
   </div>
 </template>
