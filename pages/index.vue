@@ -3,9 +3,21 @@
  * Main page — dark theme landing page with image/video processing.
  */
 
-import type { ProcessingMode } from '~/lib/types'
+import type { ProcessingMode, WatermarkRegion } from '~/lib/types'
 import { checkVideoSupport, formatFileSize, canvasToBlob } from '~/lib/utils'
 import { saveResult, loadResult, clearResult } from '~/composables/useIndexedDb'
+import {
+  IMAGE_LARGE_THRESHOLD,
+  IMAGE_MASK_48_SIZE,
+  IMAGE_MASK_96_SIZE,
+  IMAGE_MARGIN_SMALL,
+  IMAGE_MARGIN_LARGE,
+  VIDEO_MASK_720_SIZE,
+  VIDEO_MASK_1080_SIZE,
+  OFFSETS_720,
+  OFFSETS_1080,
+  SUPPORTED_VIDEO_DIMS,
+} from '~/lib/constants'
 
 const route = useRoute()
 const siteUrl = 'https://watermark-remover.arshadakl.in'
@@ -63,6 +75,16 @@ useHead({
 const mode = ref<ProcessingMode>('video')
 const openFaq = ref<number | null>(null)
 const uploadBounce = ref(false)
+
+// ── Manual watermark selection state ──────────────────────────────────────────
+const imageManualMode = ref(false)
+const imageManualRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: IMAGE_MASK_96_SIZE })
+const imageDimensions = ref<{ width: number; height: number } | null>(null)
+const videoManualMode = ref(false)
+const videoManualRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: VIDEO_MASK_1080_SIZE })
+const videoFrameUrl = ref<string | null>(null)
+const videoDimensions = ref<{ width: number; height: number } | null>(null)
+const videoUnsupportedReason = ref<string | null>(null)
 
 // ── Image state ───────────────────────────────────────────────────────────────
 const imageFile = ref<File | null>(null)
@@ -127,6 +149,10 @@ const faqs = [
   { q: 'Will the cleaned file lose quality?', a: 'No. Reverse alpha blending restores the original pixel values mathematically, so outside the watermark zone every pixel is byte-identical to the source. Image resolution, video frame rate, bitrate, and audio are preserved.' },
 ]
 
+function toggleVideoManualMode() {
+  videoManualMode.value = !videoManualMode.value
+}
+
 function toggleFaq(index: number) {
   openFaq.value = openFaq.value === index ? null : index
 }
@@ -148,7 +174,20 @@ function onImageSelect(file: File) {
   imageNotice.value = null
   imageFile.value = file
   imagePreviewUrl.value = URL.createObjectURL(file)
+  imageManualMode.value = false
   clearResult('image')
+
+  // Pre-load image to set an initial manual region estimate.
+  const img = new Image()
+  img.onload = () => {
+    imageDimensions.value = { width: img.naturalWidth, height: img.naturalHeight }
+    imageManualRegion.value = estimateDefaultImageRegion(img.naturalWidth, img.naturalHeight)
+  }
+  img.src = imagePreviewUrl.value
+}
+
+function toggleImageManualMode() {
+  imageManualMode.value = !imageManualMode.value
 }
 
 async function handleImageProcess() {
@@ -161,7 +200,9 @@ async function handleImageProcess() {
     img.onerror = () => reject(new Error('Failed to load image'))
   })
 
-  const res = await processImage(img)
+  const res = await processImage(img, {
+    forcePosition: imageManualMode.value ? imageManualRegion.value : undefined,
+  })
   if (res?.removed) {
     imageNotice.value = null
     const canvas = document.createElement('canvas')
@@ -201,23 +242,43 @@ function resetImageAll() {
   releaseImageResult()
   imageNotice.value = null
   imageFile.value = null
+  imageDimensions.value = null
+  imageManualMode.value = false
+  imageManualRegion.value = { x: 0, y: 0, size: IMAGE_MASK_96_SIZE }
   clearResult('image')
 }
 
 // ── Video handling ────────────────────────────────────────────────────────────
-function onVideoSelect(file: File) {
+async function onVideoSelect(file: File) {
   resetVideo()
   releaseVideoResult()
   videoFile.value = file
   videoPreviewUrl.value = URL.createObjectURL(file)
+  videoFrameUrl.value = null
+  videoDimensions.value = null
+  videoUnsupportedReason.value = null
+  videoManualMode.value = false
   clearResult('video')
+
+  const frame = await extractVideoFrame(file)
+  if (frame) {
+    videoFrameUrl.value = frame.url
+    videoDimensions.value = { width: frame.width, height: frame.height }
+    videoManualRegion.value = estimateDefaultVideoRegion(frame.width, frame.height)
+    if (!isSupportedVideoDimension(frame.width, frame.height)) {
+      videoManualMode.value = true
+      videoUnsupportedReason.value = `This resolution (${frame.width}×${frame.height}) is not auto-detected. Manual mode is on — mark your watermark area.`
+    }
+  }
 }
 
 async function handleVideoProcess() {
   const file = videoFile.value
   if (!file) return
   const ab = await file.arrayBuffer()
-  const blob = await processVideo(ab)
+  const blob = await processVideo(ab, {
+    forcePosition: videoManualMode.value ? videoManualRegion.value : undefined,
+  })
   if (blob) {
     releaseVideoResult()
     videoDownloadUrl.value = URL.createObjectURL(blob)
@@ -245,6 +306,11 @@ function resetVideoAll() {
   }
   releaseVideoResult()
   videoFile.value = null
+  videoFrameUrl.value = null
+  videoDimensions.value = null
+  videoUnsupportedReason.value = null
+  videoManualMode.value = false
+  videoManualRegion.value = { x: 0, y: 0, size: VIDEO_MASK_1080_SIZE }
   clearResult('video')
 }
 
@@ -255,6 +321,72 @@ function resetAll() {
 
 function switchMode(m: ProcessingMode) {
   mode.value = m
+}
+
+function estimateDefaultImageRegion(width: number, height: number): WatermarkRegion {
+  const isLarge = width > IMAGE_LARGE_THRESHOLD && height > IMAGE_LARGE_THRESHOLD
+  const size = isLarge ? IMAGE_MASK_96_SIZE : IMAGE_MASK_48_SIZE
+  const margin = isLarge ? IMAGE_MARGIN_LARGE : IMAGE_MARGIN_SMALL
+  return {
+    x: Math.max(0, width - margin - size),
+    y: Math.max(0, height - margin - size),
+    size,
+  }
+}
+
+function estimateDefaultVideoRegion(width: number, height: number): WatermarkRegion {
+  const is1080 = Math.min(width, height) >= 1080
+  const size = is1080 ? VIDEO_MASK_1080_SIZE : VIDEO_MASK_48_SIZE
+  const offsets = is1080 ? OFFSETS_1080 : OFFSETS_720
+  const margin = offsets[0]
+  return {
+    x: Math.max(0, width - margin - size),
+    y: Math.max(0, height - margin - size),
+    size,
+  }
+}
+
+function isSupportedVideoDimension(width: number, height: number): boolean {
+  return SUPPORTED_VIDEO_DIMS.has(`${width}x${height}`)
+}
+
+async function extractVideoFrame(file: File): Promise<{ url: string; width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.crossOrigin = 'anonymous'
+    const url = URL.createObjectURL(file)
+    video.src = url
+
+    video.addEventListener('loadeddata', () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          URL.revokeObjectURL(url)
+          resolve(null)
+          return
+        }
+        ctx.drawImage(video, 0, 0)
+        URL.revokeObjectURL(url)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+        resolve({ url: dataUrl, width: video.videoWidth, height: video.videoHeight })
+      } catch {
+        URL.revokeObjectURL(url)
+        resolve(null)
+      }
+    }, { once: true })
+
+    video.addEventListener('error', () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }, { once: true })
+
+    video.load()
+  })
 }
 
 // ── Persistence restore + cleanup ─────────────────────────────────────────────
@@ -432,7 +564,7 @@ const latestPosts = [
               </div>
               <p class="mb-1 text-sm font-semibold text-white">Upload your Gemini video</p>
               <p class="text-xs text-gray-500">Drag & drop or click to upload</p>
-              <p class="mt-2 text-xs text-gray-600">MP4 — 1280×720, 720×1280, 1920×1080, 1080×1920</p>
+              <p class="mt-2 text-xs text-gray-600">MP4 — any resolution supported by your browser</p>
             </div>
           </template>
 
@@ -459,23 +591,43 @@ const latestPosts = [
                   <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                     <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
                   </div>
-                  <img
-                    v-if="imagePreviewUrl"
-                    :src="imagePreviewUrl"
-                    class="max-h-[500px] w-full object-contain"
-                    alt="Original image with watermark"
-                    draggable="false"
-                  />
+                  <div class="p-3">
+                    <img
+                      v-if="imagePreviewUrl && !imageManualMode"
+                      :src="imagePreviewUrl"
+                      class="max-h-[500px] w-full rounded-xl object-contain"
+                      alt="Original image with watermark"
+                      draggable="false"
+                    />
+                    <WatermarkMarker
+                      v-if="imagePreviewUrl && imageManualMode && imageDimensions"
+                      :src="imagePreviewUrl"
+                      :width="imageDimensions.width"
+                      :height="imageDimensions.height"
+                      v-model="imageManualRegion"
+                      :sizes="[IMAGE_MASK_48_SIZE, IMAGE_MASK_96_SIZE]"
+                    />
+                  </div>
                 </div>
 
-                <div v-else class="grid gap-4 sm:grid-cols-2">
+                <div v-else class="grid gap-4" :class="videoManualMode ? '' : 'sm:grid-cols-2'">
                   <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Original</span>
                     </div>
-                    <video v-if="videoPreviewUrl" :src="videoPreviewUrl" controls class="max-h-80 w-full" aria-label="Original video with watermark" />
+                    <div class="p-3">
+                      <video v-if="videoPreviewUrl && !videoManualMode" :src="videoPreviewUrl" controls class="max-h-80 w-full rounded-xl" aria-label="Original video with watermark" />
+                      <WatermarkMarker
+                        v-if="videoManualMode && videoFrameUrl && videoDimensions"
+                        :src="videoFrameUrl"
+                        :width="videoDimensions.width"
+                        :height="videoDimensions.height"
+                        v-model="videoManualRegion"
+                        :sizes="[VIDEO_MASK_720_SIZE, VIDEO_MASK_1080_SIZE]"
+                      />
+                    </div>
                   </div>
-                  <div class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
+                  <div v-if="!videoManualMode" class="overflow-hidden rounded-2xl border border-white/5 bg-black/40">
                     <div class="flex items-center justify-between border-b border-white/5 px-3 py-2">
                       <span class="text-xs font-semibold uppercase tracking-wider text-brand-400">Cleaned</span>
                     </div>
@@ -484,6 +636,39 @@ const latestPosts = [
                       Click "Remove Watermark" to see the cleaned result
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Manual mode controls -->
+              <div class="mx-8 mt-4">
+                <div v-if="mode === 'image' && imageDimensions" class="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                  <span class="text-xs text-gray-400">
+                    {{ imageManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
+                  </span>
+                  <button
+                    type="button"
+                    class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                    @click="toggleImageManualMode"
+                  >
+                    {{ imageManualMode ? 'Use auto-detect' : 'Mark manually' }}
+                  </button>
+                </div>
+                <div v-if="mode === 'video' && videoDimensions" class="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-400">
+                      {{ videoManualMode ? 'Manual mode is on — drag the box to your watermark.' : 'Auto-detect is active.' }}
+                    </span>
+                    <button
+                      type="button"
+                      class="text-xs font-semibold text-brand-400 hover:text-brand-300"
+                      @click="toggleVideoManualMode"
+                    >
+                      {{ videoManualMode ? 'Use auto-detect' : 'Mark manually' }}
+                    </button>
+                  </div>
+                  <p v-if="videoUnsupportedReason" class="text-xs text-amber-400">
+                    {{ videoUnsupportedReason }}
+                  </p>
                 </div>
               </div>
 
