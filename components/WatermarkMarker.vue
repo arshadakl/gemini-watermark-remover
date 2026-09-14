@@ -20,19 +20,23 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 const loadedImage = ref<HTMLImageElement | null>(null)
 const loadedSrc = ref('')
+const containerWidth = ref(0)
+const containerHeight = ref(0)
 
-const HANDLE_SIZE = 12
+const HANDLE_SIZE = 16
 
 type DragMode = 'move' | 'resize'
 const dragMode = ref<DragMode | null>(null)
 const startPointer = ref({ x: 0, y: 0 })
 const startRegion = ref<WatermarkRegion>({ x: 0, y: 0, size: 0 })
 
+let resizeObserver: ResizeObserver | null = null
+
 const displaySize = computed(() => {
-  const el = containerRef.value
-  if (!el) return { width: props.width, height: props.height }
-  const rect = el.getBoundingClientRect()
-  return { width: rect.width, height: rect.height }
+  if (containerWidth.value > 0 && containerHeight.value > 0) {
+    return { width: containerWidth.value, height: containerHeight.value }
+  }
+  return { width: props.width, height: props.height }
 })
 
 const scale = computed(() => {
@@ -135,6 +139,8 @@ function draw() {
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
   const cssWidth = displaySize.value.width
   const cssHeight = displaySize.value.height
+  // Skip drawing until the container has a real measured size.
+  if (cssWidth === props.width && cssHeight === props.height && !containerRef.value) return
   canvas.width = Math.round(cssWidth * dpr)
   canvas.height = Math.round(cssHeight * dpr)
   canvas.style.width = `${cssWidth}px`
@@ -220,7 +226,9 @@ function onPointerMove(event: PointerEvent) {
     })
   } else if (dragMode.value === 'resize') {
     const minDisplay = 16 * scale.value
-    const newSize = toNaturalSize(Math.max(minDisplay, toDisplaySize(startRegion.value.size) + Math.max(dx, dy)))
+    // Follow the dominant drag direction so both horizontal and vertical drags work.
+    const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
+    const newSize = toNaturalSize(Math.max(minDisplay, toDisplaySize(startRegion.value.size) + delta))
     updateRegion({ size: newSize })
   }
 }
@@ -233,15 +241,25 @@ function onPointerUp(event: PointerEvent) {
   }
 }
 
-watch(() => [props.modelValue, props.src, displaySize.value.width, displaySize.value.height], draw, { immediate: true })
-
-onMounted(() => {
-  window.addEventListener('resize', draw)
+watch(() => [props.modelValue, props.src], () => {
   draw()
 })
 
+onMounted(() => {
+  resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (entry) {
+      containerWidth.value = entry.contentRect.width
+      containerHeight.value = entry.contentRect.height
+      draw()
+    }
+  })
+  if (containerRef.value) resizeObserver.observe(containerRef.value)
+})
+
 onUnmounted(() => {
-  window.removeEventListener('resize', draw)
+  resizeObserver?.disconnect()
+  resizeObserver = null
 })
 </script>
 
@@ -249,12 +267,11 @@ onUnmounted(() => {
   <div ref="containerRef" class="relative w-full select-none">
     <canvas
       ref="canvasRef"
-      class="block w-full cursor-crosshair rounded-2xl"
+      class="block w-full cursor-crosshair touch-none rounded-2xl"
       :class="disabled ? 'opacity-60' : ''"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
-      @pointerleave="onPointerUp"
       @pointercancel="onPointerUp"
     />
 
